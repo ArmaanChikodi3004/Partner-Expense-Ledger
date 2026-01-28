@@ -72,24 +72,19 @@ class _TransactionListState extends State<TransactionList> {
     switch (activeFilter) {
       case DateFilter.today:
         start = DateTime(now.year, now.month, now.day);
-        return allTransactions.where((t) => t.date.isAfter(start)).toList();
-
+        break;
       case DateFilter.last2Days:
         start = now.subtract(const Duration(days: 2));
-        return allTransactions.where((t) => t.date.isAfter(start)).toList();
-
+        break;
       case DateFilter.last7Days:
         start = now.subtract(const Duration(days: 7));
-        return allTransactions.where((t) => t.date.isAfter(start)).toList();
-
+        break;
       case DateFilter.last15Days:
         start = now.subtract(const Duration(days: 15));
-        return allTransactions.where((t) => t.date.isAfter(start)).toList();
-
+        break;
       case DateFilter.lastMonth:
         start = DateTime(now.year, now.month - 1, now.day);
-        return allTransactions.where((t) => t.date.isAfter(start)).toList();
-
+        break;
       case DateFilter.custom:
         if (customRange == null) return allTransactions;
         return allTransactions.where((t) =>
@@ -97,6 +92,8 @@ class _TransactionListState extends State<TransactionList> {
           t.date.isBefore(customRange!.end)
         ).toList();
     }
+
+    return allTransactions.where((t) => t.date.isAfter(start)).toList();
   }
 
   // ---------------- UI ----------------
@@ -105,20 +102,22 @@ class _TransactionListState extends State<TransactionList> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // -------- TITLE --------
-        const Text(
-          'Recent Transactions',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
+        // -------- TITLE + DROPDOWN --------
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Recent Transactions',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+
+            _dateFilterDropdown(context),
+          ],
         ),
-
-        const SizedBox(height: 12),
-
-        // -------- DATE FILTER CHIPS --------
-        _dateFilterChips(),
 
         const SizedBox(height: 16),
 
@@ -128,55 +127,61 @@ class _TransactionListState extends State<TransactionList> {
     );
   }
 
-  // ---------------- DATE CHIPS ----------------
-  Widget _dateFilterChips() {
-  return Wrap(
-    spacing: 8,        // horizontal gap
-    runSpacing: 10,    // ✅ vertical gap between rows (FIX)
-    children: DateFilter.values.map((filter) {
-      final isActive = activeFilter == filter;
-
-      return GestureDetector(
-        onTap: () async {
-          if (filter == DateFilter.custom) {
-            await _pickCustomRange(context);
-          } else {
-            setState(() => activeFilter = filter);
-          }
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 8,
-          ),
-          decoration: BoxDecoration(
-            color: isActive
-                ? const Color(0xFF6366F1)
-                : Colors.white.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: isActive
-                  ? const Color(0xFF6366F1)
-                  : Colors.white.withOpacity(0.15),
-            ),
-          ),
+  // ---------------- DATE FILTER DROPDOWN ----------------
+  Widget _dateFilterDropdown(BuildContext context) {
+    return PopupMenuButton<DateFilter>(
+      onSelected: (filter) async {
+        if (filter == DateFilter.custom) {
+          await _pickCustomRange(context);
+        } else {
+          setState(() => activeFilter = filter);
+        }
+      },
+      color: const Color(0xFF111827),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+      itemBuilder: (_) => DateFilter.values.map((filter) {
+        return PopupMenuItem<DateFilter>(
+          value: filter,
           child: Text(
             _labelForFilter(filter),
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: isActive ? Colors.white : Colors.white70,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w500,
             ),
           ),
+        );
+      }).toList(),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF6366F1),
+          borderRadius: BorderRadius.circular(16),
         ),
-      );
-    }).toList(),
-  );
-}
+        child: Row(
+          children: [
+            Text(
+              _labelForFilter(activeFilter),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 6),
+            const Icon(
+              Icons.keyboard_arrow_down,
+              color: Colors.white,
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-
-  // ---------------- CUSTOM DATE PICKER (DARK) ----------------
+  // ---------------- CUSTOM DATE PICKER ----------------
   Future<void> _pickCustomRange(BuildContext context) async {
     final picked = await showDateRangePicker(
       context: context,

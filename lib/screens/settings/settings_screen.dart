@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'edit_profile_screen.dart';
-import 'change_avatar_sheet.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -47,9 +46,9 @@ class SettingsScreen extends StatelessWidget {
                     Container(
                       width: 64,
                       height: 64,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(18),
-                        gradient: const LinearGradient(
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
                           colors: [
                             Color(0xFF6366F1),
                             Color(0xFFEC4899),
@@ -57,15 +56,15 @@ class SettingsScreen extends StatelessWidget {
                         ),
                       ),
                       alignment: Alignment.center,
-                      child: const Text(
-                        '👤',
-                        style: TextStyle(fontSize: 32),
+                      child: const Icon(
+                        Icons.person,
+                        size: 36,
+                        color: Colors.white,
                       ),
                     ),
 
                     const SizedBox(width: 16),
 
-                    // Name + Email
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -94,46 +93,21 @@ class SettingsScreen extends StatelessWidget {
 
                 const SizedBox(height: 16),
 
-                // Edit buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: _outlineButton(
-  icon: Icons.edit,
-  label: 'Edit Profile',
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const EditProfileScreen(),
-      ),
-    );
-  },
-),
-
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _outlineButton(
-  icon: Icons.image,
-  label: 'Change Avatar',
-  onTap: () {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => const ChangeAvatarSheet(),
-    );
-  },
-),
-
-                    ),
-                  ],
+                _outlineButton(
+                  icon: Icons.edit,
+                  label: 'Edit Profile',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const EditProfileScreen(),
+                      ),
+                    );
+                  },
                 ),
 
                 const SizedBox(height: 16),
 
-                // Logout
                 _dangerButton(
                   icon: Icons.logout,
                   label: 'Logout',
@@ -191,8 +165,8 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
 
-                _supportTile(Icons.shield, 'Privacy Policy'),
-                _supportTile(Icons.help_outline, 'Help & FAQs'),
+                _supportTile(Icons.help_outline, 'Help Center'),
+                _supportTile(Icons.shield_outlined, 'Privacy Policy'),
               ],
             ),
           ),
@@ -281,7 +255,7 @@ class SettingsScreen extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
               ),

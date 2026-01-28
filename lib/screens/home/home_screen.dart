@@ -9,16 +9,6 @@ import '../../widgets/entry/add_entry_sheet.dart';
 
 enum HomeTab { home, reports, settings }
 
-// ✅ Date Filter Enum
-enum DateFilter {
-  today,
-  last2Days,
-  last7Days,
-  last15Days,
-  lastMonth,
-  custom,
-}
-
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -29,12 +19,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   HomeTab activeTab = HomeTab.home;
 
-  // User filter
-  String selectedUser = 'All';
-
-  // Date filter
-  DateFilter activeDateFilter = DateFilter.last7Days;
-  DateTimeRange? customRange;
+  // ✅ MULTI-SELECT USER FILTER
+  final Set<String> selectedUsers = {'All'};
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: const [
           Padding(
             padding: EdgeInsets.only(right: 16),
-            child: Icon(Icons.sync, color: Colors.white70),
+            //child: Icon(Icons.sync, color: Colors.white70),
           )
         ],
       ),
@@ -103,20 +89,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 expense: 5500,
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
 
-              // ✅ USER FILTER CHIPS
-              _userFilterChips(),
-
-              const SizedBox(height: 12),
-
-              // ✅ DATE FILTER CHIPS
-              _dateFilterChips(),
-
-              const SizedBox(height: 16),
-
-              // Category chart (later: filter by user + date)
-              const CategoryChartCard(),
+              // ---------------- SPENDING BY CATEGORY ----------------
+              _spendingCategorySection(),
 
               const SizedBox(height: 20),
 
@@ -135,9 +111,28 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // ---------------- USER FILTER CHIPS ----------------
+  // ---------------- SPENDING CATEGORY SECTION ----------------
 
-  Widget _userFilterChips() {
+  Widget _spendingCategorySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 🔹 USER FILTER CHIPS (MOVED HERE)
+        _userMultiSelectChips(),
+
+        const SizedBox(height: 12),
+
+        CategoryChartCard(
+          // 🔜 later you’ll pass selectedUsers to filter data
+          // selectedUsers: selectedUsers,
+        ),
+      ],
+    );
+  }
+
+  // ---------------- MULTI-SELECT USER CHIPS ----------------
+
+  Widget _userMultiSelectChips() {
     final users = ['All', 'Armaan', 'Waize', 'Sam'];
 
     return SizedBox(
@@ -148,10 +143,32 @@ class _HomeScreenState extends State<HomeScreen> {
         separatorBuilder: (_, __) => const SizedBox(width: 10),
         itemBuilder: (context, index) {
           final user = users[index];
-          final isActive = selectedUser == user;
+          final isActive = selectedUsers.contains(user);
 
           return GestureDetector(
-            onTap: () => setState(() => selectedUser = user),
+            onTap: () {
+              setState(() {
+                if (user == 'All') {
+                  // ✅ Reset everything
+                  selectedUsers
+                    ..clear()
+                    ..add('All');
+                } else {
+                  selectedUsers.remove('All');
+
+                  if (isActive) {
+                    selectedUsers.remove(user);
+                  } else {
+                    selectedUsers.add(user);
+                  }
+
+                  // ✅ Fallback to All if nothing selected
+                  if (selectedUsers.isEmpty) {
+                    selectedUsers.add('All');
+                  }
+                }
+              });
+            },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -167,93 +184,30 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               alignment: Alignment.center,
-              child: Text(
-                user,
-                style: TextStyle(
-                  color: isActive ? Colors.white : Colors.white70,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
+              child: Row(
+                children: [
+                  if (isActive && user != 'All')
+                    const Icon(
+                      Icons.check,
+                      size: 14,
+                      color: Colors.white,
+                    ),
+                  if (isActive && user != 'All')
+                    const SizedBox(width: 6),
+                  Text(
+                    user,
+                    style: TextStyle(
+                      color: isActive ? Colors.white : Colors.white70,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
               ),
             ),
           );
         },
       ),
     );
-  }
-
-  // ---------------- DATE FILTER CHIPS ----------------
-
-  Widget _dateFilterChips() {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: DateFilter.values.map((filter) {
-        final isActive = activeDateFilter == filter;
-
-        return ChoiceChip(
-  label: Text(_labelForFilter(filter)),
-  selected: isActive,
-  onSelected: (_) async {
-    if (filter == DateFilter.custom) {
-      final range = await showDateRangePicker(
-        context: context,
-        firstDate: DateTime(2020),
-        lastDate: DateTime.now(),
-      );
-      if (range != null) {
-        setState(() {
-          customRange = range;
-          activeDateFilter = filter;
-        });
-      }
-    } else {
-      setState(() => activeDateFilter = filter);
-    }
-  },
-
-  // ✅ FORCE DARK MODE COLORS
-  backgroundColor: const Color(0xFF1F2937), // dark gray
-  selectedColor: const Color(0xFF6366F1),   // accent blue
-
-  disabledColor: const Color(0xFF1F2937),
-
-  labelStyle: TextStyle(
-    color: isActive ? Colors.white : Colors.white70,
-    fontWeight: FontWeight.w600,
-    fontSize: 12,
-  ),
-
-  shape: RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(14),
-    side: BorderSide(
-      color: isActive
-          ? const Color(0xFF6366F1)
-          : Colors.white.withOpacity(0.15),
-    ),
-  ),
-);
-
-      }).toList(),
-    );
-  }
-
-  // ---------------- DATE FILTER LABEL ----------------
-
-  String _labelForFilter(DateFilter filter) {
-    switch (filter) {
-      case DateFilter.today:
-        return 'Today';
-      case DateFilter.last2Days:
-        return '2 Days';
-      case DateFilter.last7Days:
-        return '7 Days';
-      case DateFilter.last15Days:
-        return '15 Days';
-      case DateFilter.lastMonth:
-        return '1 Month';
-      case DateFilter.custom:
-        return 'Custom';
-    }
   }
 }

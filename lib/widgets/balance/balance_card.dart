@@ -15,7 +15,7 @@ class BalanceCard extends StatelessWidget {
   });
 
   String _formatCurrency(int amount) {
-    return '₹${amount.toString()}';
+    return '₹$amount';
   }
 
   @override
@@ -33,96 +33,62 @@ class BalanceCard extends StatelessWidget {
               color: Colors.white.withOpacity(0.1),
             ),
           ),
-          child: Stack(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 🔵 Background glow (top right)
-              Positioned(
-                top: -60,
-                right: -60,
-                child: Container(
-                  width: 140,
-                  height: 140,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF6366F1).withOpacity(0.25),
-                    shape: BoxShape.circle,
+              const Text(
+                'Total Balance',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _formatCurrency(balance),
+                style: const TextStyle(
+                  fontSize: 36,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // 🔹 Sparkline
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: SparklineChart(),
+              ),
+
+              const Center(
+                child: Text(
+                  'Last 7 days',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.white54,
                   ),
                 ),
               ),
 
-              // 🔴 Background glow (bottom left)
-              Positioned(
-                bottom: -40,
-                left: -40,
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEC4899).withOpacity(0.15),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
+              const SizedBox(height: 20),
 
-              // ---------------- CONTENT ----------------
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              // ---------------- INCOME / EXPENSE ----------------
+              Row(
                 children: [
-                  const Text(
-                    'Total Balance',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.white70,
-                      fontWeight: FontWeight.w500,
-                    ),
+                  _summaryCard(
+                    label: 'Income',
+                    amount: income,
+                    color: const Color(0xFF6366F1),
+                    icon: Icons.arrow_upward,
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _formatCurrency(balance),
-                    style: const TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // 🔹 Sparkline placeholder
-                  const Padding(
-  padding: EdgeInsets.symmetric(vertical: 12),
-  child: SparklineChart(),
-),
-
-                  const SizedBox(height: 4),
-                  const Center(
-                    child: Text(
-                      'Last 7 days',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.white54,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // ---------------- INCOME / EXPENSE ----------------
-                  Row(
-                    children: [
-                      _summaryCard(
-                        label: 'Income',
-                        amount: income,
-                        color: const Color(0xFF6366F1),
-                        icon: Icons.arrow_upward,
-                      ),
-                      const SizedBox(width: 12),
-                      _summaryCard(
-                        label: 'Expense',
-                        amount: expense,
-                        color: const Color(0xFFEC4899),
-                        icon: Icons.arrow_downward,
-                      ),
-                    ],
+                  const SizedBox(width: 12),
+                  _summaryCard(
+                    label: 'Expense',
+                    amount: expense,
+                    color: const Color(0xFFEC4899),
+                    icon: Icons.arrow_downward,
                   ),
                 ],
               ),
@@ -133,6 +99,7 @@ class BalanceCard extends StatelessWidget {
     );
   }
 
+  // ---------------- SUMMARY CARD ----------------
   Widget _summaryCard({
     required String label,
     required int amount,
@@ -143,8 +110,11 @@ class BalanceCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.12),
+          color: color.withOpacity(0.15),
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: color.withOpacity(0.3),
+          ),
         ),
         child: Row(
           children: [
@@ -158,26 +128,33 @@ class BalanceCard extends StatelessWidget {
               child: Icon(icon, color: color, size: 20),
             ),
             const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.white70,
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.white70,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  _formatCurrency(amount),
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: color,
+                  const SizedBox(height: 2),
+                  Text(
+                    _formatCurrency(amount),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
