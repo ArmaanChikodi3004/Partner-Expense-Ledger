@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "871967959942",
+    "project_id": "partner-ledger",
+    "storage_bucket": "partner-ledger.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:871967959942:android:c57edc8afec07b2b615a07",
+        "android_client_info": {
+          "package_name": "com.partnerledger.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBO_N9TCF_9hX8A0F0XuC0S2T3UTI4dcJU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

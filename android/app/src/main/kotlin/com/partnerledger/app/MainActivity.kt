@@ -1,4 +1,5 @@
-package com.example.native_app
+package com.partnerledger.app
+
 
 import io.flutter.embedding.android.FlutterActivity
 

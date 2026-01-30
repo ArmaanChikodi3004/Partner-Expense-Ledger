@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../data/demo_categories.dart';
 
+// 🔹 FIREBASE
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../services/expense_service.dart';
+
+// 🔴 TEMP: REAL partnerId from Firestore
+const String activePartnerId = 'SpPtxpqYGsi91opBOF7W';
+
 class AddEntrySheet extends StatefulWidget {
   const AddEntrySheet({super.key});
 
@@ -16,6 +23,8 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
   final TextEditingController descriptionController = TextEditingController();
 
   final List<String> attachments = [];
+
+  bool isSaving = false;
 
   @override
   void dispose() {
@@ -82,7 +91,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
     );
   }
 
-  // ───────────────────── UI PARTS ─────────────────────
+  // ───────────────── UI PARTS ─────────────────
 
   Widget _dragHandle() => Center(
         child: Container(
@@ -211,7 +220,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
     );
   }
 
-  // ───────── CATEGORY GRID (SMALLER) ─────────
+  // ───────── CATEGORY GRID ─────────
 
   Widget _categoryGrid(List<DemoCategory> categories) {
     return GridView.count(
@@ -314,13 +323,16 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
   // ───────── SUBMIT BUTTON ─────────
 
   Widget _submitButton() {
-    final enabled = selectedCategory != null;
+    final enabled =
+        selectedCategory != null &&
+        amountController.text.isNotEmpty &&
+        !isSaving;
 
     return SizedBox(
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
-        onPressed: enabled ? () => Navigator.pop(context) : null,
+        onPressed: enabled ? _handleSubmit : null,
         style: ElevatedButton.styleFrom(
           backgroundColor: _submitColor,
           disabledBackgroundColor: Colors.white.withOpacity(0.15),
@@ -331,7 +343,11 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
           elevation: 0,
         ),
         child: Text(
-          selectedType == EntryType.income ? 'Add Income' : 'Add Expense',
+          isSaving
+              ? 'Saving...'
+              : selectedType == EntryType.income
+                  ? 'Add Income'
+                  : 'Add Expense',
           style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -339,6 +355,42 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
         ),
       ),
     );
+  }
+
+  Future<void> _handleSubmit() async {
+    try {
+      setState(() => isSaving = true);
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      await ExpenseService.addExpense(
+        partnerId: activePartnerId,
+        title: descriptionController.text.trim().isEmpty
+            ? selectedCategory!
+            : descriptionController.text.trim(),
+        amount: double.parse(amountController.text.trim()),
+        type: selectedType == EntryType.expense ? 'expense' : 'income',
+        category: selectedCategory!,
+        paidBy: user.uid,
+      );
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Entry added successfully')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => isSaving = false);
+    }
   }
 
   Widget _sectionLabel(String text) => Padding(

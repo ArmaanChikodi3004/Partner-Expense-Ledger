@@ -1,198 +1,225 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../login/login_screen.dart';
 import 'edit_profile_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
+  Future<void> _logout(BuildContext context) async {
+    await FirebaseAuth.instance.signOut();
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
+  Future<DocumentSnapshot<Map<String, dynamic>>> _fetchUser() {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ---------------- TITLE ----------------
-          const Text(
-            'Settings',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      future: _fetchUser(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const Center(
+            child: Text(
+              'User data not found',
+              style: TextStyle(color: Colors.white),
             ),
-          ),
+          );
+        }
 
-          const SizedBox(height: 20),
+        final userData = snapshot.data!.data()!;
+        final name = userData['name'] ?? '';
+        final email = userData['email'] ?? '';
 
-          // ---------------- PROFILE CARD ----------------
-          _glassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Your Profile',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
+        return SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ---------------- TITLE ----------------
+              const Text(
+                'Settings',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
+              ),
 
-                const SizedBox(height: 16),
+              const SizedBox(height: 20),
 
-                Row(
+              // ---------------- PROFILE ----------------
+              _glassCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Avatar
-                    Container(
-                      width: 64,
-                      height: 64,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: [
-                            Color(0xFF6366F1),
-                            Color(0xFFEC4899),
-                          ],
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.person,
-                        size: 36,
+                    const Text(
+                      'Your Profile',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
                         color: Colors.white,
                       ),
                     ),
-
-                    const SizedBox(width: 16),
-
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text(
-                            'Armaan Chikodi',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Container(
+                          width: 64,
+                          height: 64,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              colors: [
+                                Color(0xFF6366F1),
+                                Color(0xFFEC4899),
+                              ],
                             ),
                           ),
-                          SizedBox(height: 4),
-                          Text(
-                            'armaanchikodi17@gmail.com',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.white60,
-                            ),
+                          child: const Icon(Icons.person,
+                              size: 36, color: Colors.white),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                name,
+                                style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                email,
+                                style: const TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.white60),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _outlineButton(
+                      icon: Icons.edit,
+                      label: 'Edit Profile',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const EditProfileScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _dangerButton(
+                      icon: Icons.logout,
+                      label: 'Logout',
+                      onTap: () => _logout(context),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // ---------------- PREFERENCES ----------------
+              _glassCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Preferences',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _settingTile(
+                      icon: Icons.notifications,
+                      title: 'Notifications',
+                      subtitle: 'Get alerts for new entries',
+                      trailing: Switch(
+                        value: true,
+                        onChanged: (_) {},
+                        activeColor: const Color(0xFF6366F1),
                       ),
                     ),
                   ],
                 ),
+              ),
 
-                const SizedBox(height: 16),
+              const SizedBox(height: 20),
 
-                _outlineButton(
-                  icon: Icons.edit,
-                  label: 'Edit Profile',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const EditProfileScreen(),
+              // ---------------- SUPPORT ----------------
+              _glassCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'Support',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
                       ),
-                    );
-                  },
+                    ),
+                    SizedBox(height: 16),
+                    _SupportTile(Icons.help_outline, 'Help Center'),
+                    _SupportTile(Icons.shield_outlined, 'Privacy Policy'),
+                  ],
                 ),
+              ),
 
-                const SizedBox(height: 16),
+              const SizedBox(height: 30),
 
-                _dangerButton(
-                  icon: Icons.logout,
-                  label: 'Logout',
-                  onTap: () {},
+              // ---------------- FOOTER ----------------
+              const Center(
+                child: Column(
+                  children: [
+                    Text(
+                      'Partner Expense Tracker',
+                      style: TextStyle(color: Colors.white54),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      '© 2026 Partner Ledger',
+                      style:
+                          TextStyle(color: Colors.white38, fontSize: 12),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+
+              const SizedBox(height: 120),
+            ],
           ),
-
-          const SizedBox(height: 20),
-
-          // ---------------- PREFERENCES ----------------
-          _glassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Preferences',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                _settingTile(
-                  icon: Icons.notifications,
-                  title: 'Notifications',
-                  subtitle: 'Get alerts for new entries',
-                  trailing: Switch(
-                    value: true,
-                    onChanged: (_) {},
-                    activeColor: const Color(0xFF6366F1),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          // ---------------- SUPPORT ----------------
-          _glassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Support',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                _supportTile(Icons.help_outline, 'Help Center'),
-                _supportTile(Icons.shield_outlined, 'Privacy Policy'),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 30),
-
-          // ---------------- FOOTER ----------------
-          const Center(
-            child: Column(
-              children: [
-                Text(
-                  'Partner Expense Tracker',
-                  style: TextStyle(color: Colors.white54),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  '© 2026 Partner Ledger',
-                  style: TextStyle(color: Colors.white38, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 120),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -253,13 +280,10 @@ class SettingsScreen extends StatelessWidget {
           children: [
             Icon(icon, size: 18, color: Colors.white),
             const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            Text(label,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600)),
           ],
         ),
       ),
@@ -303,8 +327,16 @@ class SettingsScreen extends StatelessWidget {
       ],
     );
   }
+}
 
-  Widget _supportTile(IconData icon, String label) {
+class _SupportTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _SupportTile(this.icon, this.label);
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(

@@ -7,6 +7,10 @@ import '../reports/reports_screen.dart';
 import '../settings/settings_screen.dart';
 import '../../widgets/entry/add_entry_sheet.dart';
 
+// 🔹 NEW
+import '../../services/partner_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 enum HomeTab { home, reports, settings }
 
 class HomeScreen extends StatefulWidget {
@@ -38,12 +42,6 @@ class _HomeScreenState extends State<HomeScreen> {
             height: 36,
           ),
         ),
-        actions: const [
-          Padding(
-            padding: EdgeInsets.only(right: 16),
-            //child: Icon(Icons.sync, color: Colors.white70),
-          )
-        ],
       ),
 
       // ---------------- BODY ----------------
@@ -98,6 +96,37 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const TransactionList(),
 
+              const SizedBox(height: 20),
+
+              // 🔥 TEMP TEST BUTTON (Step 7.2)
+              ElevatedButton(
+  onPressed: () async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser!.uid;
+
+      final partnerId = await PartnerService.createPartner(
+        name: 'Demo Partner Group',
+        memberUids: [uid],
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Partner created: $partnerId'),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  },
+  child: const Text('Create Demo Partner'),
+),
+
+
               const SizedBox(height: 110),
             ],
           ),
@@ -117,15 +146,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 🔹 USER FILTER CHIPS (MOVED HERE)
         _userMultiSelectChips(),
-
         const SizedBox(height: 12),
-
-        CategoryChartCard(
-          // 🔜 later you’ll pass selectedUsers to filter data
-          // selectedUsers: selectedUsers,
-        ),
+        const CategoryChartCard(),
       ],
     );
   }
@@ -149,7 +172,6 @@ class _HomeScreenState extends State<HomeScreen> {
             onTap: () {
               setState(() {
                 if (user == 'All') {
-                  // ✅ Reset everything
                   selectedUsers
                     ..clear()
                     ..add('All');
@@ -162,7 +184,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     selectedUsers.add(user);
                   }
 
-                  // ✅ Fallback to All if nothing selected
                   if (selectedUsers.isEmpty) {
                     selectedUsers.add('All');
                   }
@@ -184,25 +205,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               alignment: Alignment.center,
-              child: Row(
-                children: [
-                  if (isActive && user != 'All')
-                    const Icon(
-                      Icons.check,
-                      size: 14,
-                      color: Colors.white,
-                    ),
-                  if (isActive && user != 'All')
-                    const SizedBox(width: 6),
-                  Text(
-                    user,
-                    style: TextStyle(
-                      color: isActive ? Colors.white : Colors.white70,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
+              child: Text(
+                user,
+                style: TextStyle(
+                  color: isActive ? Colors.white : Colors.white70,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
               ),
             ),
           );

@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import '../../services/expense_service.dart';
+
+// 🔴 TEMP: replace later with provider / selected partner
+const String activePartnerId = 'SpPtxpqYGsi9IopBOF7W';
 
 // ---------------- DATE FILTER ENUM ----------------
 enum DateFilter {
@@ -8,23 +14,6 @@ enum DateFilter {
   last15Days,
   lastMonth,
   custom,
-}
-
-// ---------------- DEMO TRANSACTION MODEL ----------------
-class DemoTransaction {
-  final String title;
-  final double amount;
-  final DateTime date;
-  final String user;
-  final IconData icon;
-
-  DemoTransaction({
-    required this.title,
-    required this.amount,
-    required this.date,
-    required this.user,
-    required this.icon,
-  });
 }
 
 // ---------------- TRANSACTION LIST ----------------
@@ -39,36 +28,11 @@ class _TransactionListState extends State<TransactionList> {
   DateFilter activeFilter = DateFilter.last7Days;
   DateTimeRange? customRange;
 
-  // 🔹 Demo data (Firebase will replace this)
-  final List<DemoTransaction> allTransactions = [
-    DemoTransaction(
-      title: 'Food',
-      amount: -250,
-      date: DateTime.now(),
-      user: 'Armaan',
-      icon: Icons.fastfood,
-    ),
-    DemoTransaction(
-      title: 'Rent',
-      amount: -5000,
-      date: DateTime.now().subtract(const Duration(days: 1)),
-      user: 'Waize',
-      icon: Icons.home,
-    ),
-    DemoTransaction(
-      title: 'Salary',
-      amount: 18000,
-      date: DateTime.now().subtract(const Duration(days: 3)),
-      user: 'Sam',
-      icon: Icons.work,
-    ),
-  ];
-
   // ---------------- DATE FILTER LOGIC ----------------
-  List<DemoTransaction> get filteredTransactions {
+  bool _matchesDateFilter(DateTime date) {
     final now = DateTime.now();
-    DateTime start;
 
+    DateTime start;
     switch (activeFilter) {
       case DateFilter.today:
         start = DateTime(now.year, now.month, now.day);
@@ -86,14 +50,12 @@ class _TransactionListState extends State<TransactionList> {
         start = DateTime(now.year, now.month - 1, now.day);
         break;
       case DateFilter.custom:
-        if (customRange == null) return allTransactions;
-        return allTransactions.where((t) =>
-          t.date.isAfter(customRange!.start) &&
-          t.date.isBefore(customRange!.end)
-        ).toList();
+        if (customRange == null) return true;
+        return date.isAfter(customRange!.start) &&
+            date.isBefore(customRange!.end);
     }
 
-    return allTransactions.where((t) => t.date.isAfter(start)).toList();
+    return date.isAfter(start);
   }
 
   // ---------------- UI ----------------
@@ -114,15 +76,54 @@ class _TransactionListState extends State<TransactionList> {
                 color: Colors.white,
               ),
             ),
-
             _dateFilterDropdown(context),
           ],
         ),
 
         const SizedBox(height: 16),
 
-        // -------- TRANSACTION LIST --------
-        ...filteredTransactions.map(_transactionTile).toList(),
+        // -------- FIRESTORE TRANSACTIONS --------
+        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: ExpenseService.getExpenses(
+            partnerId: activePartnerId,
+          ),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Text(
+                'Loading...',
+                style: TextStyle(color: Colors.white60),
+              );
+            }
+            
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return const Text(
+                'No transactions found',
+                style: TextStyle(color: Colors.white60),
+              );
+            }
+
+            final docs = snapshot.data!.docs;
+
+            final filteredDocs = docs.where((doc) {
+              final ts = doc['createdAt'] as Timestamp?;
+              if (ts == null) return false;
+              return _matchesDateFilter(ts.toDate());
+            }).toList();
+
+            if (filteredDocs.isEmpty) {
+              return const Text(
+                'No transactions found',
+                style: TextStyle(color: Colors.white60),
+              );
+            }
+
+            return Column(
+              children: filteredDocs
+                  .map((doc) => _transactionTile(doc))
+                  .toList(),
+            );
+          },
+        ),
       ],
     );
   }
@@ -211,8 +212,9 @@ class _TransactionListState extends State<TransactionList> {
   }
 
   // ---------------- TRANSACTION TILE ----------------
-  Widget _transactionTile(DemoTransaction t) {
-    final isIncome = t.amount > 0;
+  Widget _transactionTile(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data();
+    final isIncome = data['type'] == 'income';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -226,7 +228,10 @@ class _TransactionListState extends State<TransactionList> {
         children: [
           CircleAvatar(
             backgroundColor: Colors.white.withOpacity(0.1),
-            child: Icon(t.icon, color: Colors.white),
+            child: Icon(
+              isIncome ? Icons.arrow_upward : Icons.arrow_downward,
+              color: Colors.white,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -234,14 +239,14 @@ class _TransactionListState extends State<TransactionList> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  t.title,
+                  data['title'],
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 Text(
-                  'Added by ${t.user}',
+                  'Added by ${data['paidBy']}',
                   style: const TextStyle(
                     color: Colors.white60,
                     fontSize: 11,
@@ -251,9 +256,10 @@ class _TransactionListState extends State<TransactionList> {
             ),
           ),
           Text(
-            '${isIncome ? '+' : '-'}₹${t.amount.abs()}',
+            '${isIncome ? '+' : '-'}₹${data['amount']}',
             style: TextStyle(
-              color: isIncome ? Colors.greenAccent : Colors.redAccent,
+              color:
+                  isIncome ? Colors.greenAccent : Colors.redAccent,
               fontWeight: FontWeight.bold,
             ),
           ),

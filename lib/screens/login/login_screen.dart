@@ -1,5 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../home/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -14,7 +16,6 @@ class _LoginScreenState extends State<LoginScreen>
   late TabController _tabController;
   bool isLoading = false;
 
-  // Controllers (React useState equivalent)
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController nameController = TextEditingController();
@@ -34,8 +35,8 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-  // 🔴 Error snackbar (React toast equivalent)
   void _showError(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -46,15 +47,83 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   void _showSuccess(String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(message),
-      backgroundColor: const Color(0xFF16A34A), // success green
-      behavior: SnackBarBehavior.floating,
-    ),
-  );
-}
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFF16A34A),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
+  // 🔐 LOGIN
+  Future<void> _login() async {
+    try {
+      setState(() => isLoading = true);
+
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: emailController.text.trim(),
+        password: passwordController.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      _showSuccess('Welcome back!');
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
+    } on FirebaseAuthException catch (e) {
+      _showError(e.message ?? 'Login failed');
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  // 🆕 SIGN UP (FIXED FLOW)
+  Future<void> _signup() async {
+    try {
+      setState(() => isLoading = true);
+
+      // 1️⃣ AUTH CREATE (this is what matters for redirect)
+      final userCredential =
+          await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: emailController.text.trim(),
+        password: passwordController.text.trim(),
+      );
+
+      final uid = userCredential.user!.uid;
+
+      // 2️⃣ FIRESTORE SAVE (NON-BLOCKING FOR NAVIGATION)
+      try {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .set({
+          "name": nameController.text.trim(),
+          "email": emailController.text.trim(),
+          "createdAt": FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        // Firestore failed — NOT fatal for navigation
+        debugPrint('Firestore save failed: $e');
+      }
+
+      if (!mounted) return;
+
+      // 3️⃣ ALWAYS REDIRECT AFTER AUTH SUCCESS
+      _showSuccess('Account created successfully!');
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
+    } on FirebaseAuthException catch (e) {
+      _showError(e.message ?? 'Signup failed');
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +136,7 @@ class _LoginScreenState extends State<LoginScreen>
             width: 380,
             child: Column(
               children: [
-                // Logo + Title
+                // 🔵 LOGO + TITLE
                 Column(
                   children: [
                     Container(
@@ -106,7 +175,6 @@ class _LoginScreenState extends State<LoginScreen>
 
                 const SizedBox(height: 32),
 
-                // Glass Card
                 ClipRRect(
                   borderRadius: BorderRadius.circular(24),
                   child: BackdropFilter(
@@ -137,8 +205,8 @@ class _LoginScreenState extends State<LoginScreen>
                             child: TabBarView(
                               controller: _tabController,
                               children: [
-                                SingleChildScrollView(child: _loginForm()),
-                                SingleChildScrollView(child: _signupForm()),
+                                _loginForm(),
+                                _signupForm(),
                               ],
                             ),
                           ),
@@ -155,8 +223,6 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  // ---------------- LOGIN FORM ----------------
-
   Widget _loginForm() {
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -164,16 +230,11 @@ class _LoginScreenState extends State<LoginScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _label('Email'),
-          _input(
-            controller: emailController,
-            icon: Icons.mail_outline,
-            hint: 'you@example.com',
-          ),
+          _input(controller: emailController, hint: 'you@example.com'),
           const SizedBox(height: 16),
           _label('Password'),
           _input(
             controller: passwordController,
-            icon: Icons.lock_outline,
             hint: '••••••••',
             obscure: true,
           ),
@@ -184,8 +245,6 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  // ---------------- SIGNUP FORM ----------------
-
   Widget _signupForm() {
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -193,22 +252,14 @@ class _LoginScreenState extends State<LoginScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _label('Name'),
-          _input(
-            controller: nameController,
-            hint: 'Your name',
-          ),
+          _input(controller: nameController, hint: 'Your name'),
           const SizedBox(height: 16),
           _label('Email'),
-          _input(
-            controller: emailController,
-            icon: Icons.mail_outline,
-            hint: 'you@example.com',
-          ),
+          _input(controller: emailController, hint: 'you@example.com'),
           const SizedBox(height: 16),
           _label('Password'),
           _input(
             controller: passwordController,
-            icon: Icons.lock_outline,
             hint: '••••••••',
             obscure: true,
           ),
@@ -219,24 +270,18 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  // ---------------- UI HELPERS ----------------
-
   Widget _label(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Text(
         text,
-        style: const TextStyle(
-          fontSize: 13,
-          color: Colors.white70,
-        ),
+        style: const TextStyle(fontSize: 13, color: Colors.white70),
       ),
     );
   }
 
   Widget _input({
     required TextEditingController controller,
-    IconData? icon,
     required String hint,
     bool obscure = false,
   }) {
@@ -245,9 +290,6 @@ class _LoginScreenState extends State<LoginScreen>
       obscureText: obscure,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
-        prefixIcon: icon != null
-            ? Icon(icon, color: Colors.white54, size: 18)
-            : null,
         hintText: hint,
         hintStyle: const TextStyle(color: Colors.white38),
         filled: true,
@@ -265,57 +307,13 @@ class _LoginScreenState extends State<LoginScreen>
       width: double.infinity,
       height: 48,
       child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF6366F1),
-          foregroundColor: Colors.white,
-          disabledBackgroundColor:
-              const Color(0xFF6366F1).withOpacity(0.6),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
         onPressed: isLoading
             ? null
-            : () async {
-                // 🔹 VALIDATION (Step 13)
-                if (_tabController.index == 0) {
-                  // Login
-                  if (emailController.text.trim().isEmpty ||
-                      passwordController.text.trim().isEmpty) {
-                    _showError('Please fill in all fields');
-                    return;
-                  }
-                } else {
-                  // Sign Up
-                  if (nameController.text.trim().isEmpty ||
-                      emailController.text.trim().isEmpty ||
-                      passwordController.text.trim().isEmpty) {
-                    _showError('Please fill in all fields');
-                    return;
-                  }
-                }
-
-                setState(() => isLoading = true);
-                await Future.delayed(const Duration(milliseconds: 500));
-                setState(() => isLoading = false);
-
-_showSuccess(
-  _tabController.index == 0
-      ? 'Welcome back!'
-      : 'Account created successfully!',
-);
-
-Navigator.pushReplacement(
-  context,
-  MaterialPageRoute(builder: (_) => const HomeScreen()),
-);
-
+            : () {
+                _tabController.index == 0 ? _login() : _signup();
               },
         child: isLoading
-            ? const Text(
-                'Please wait...',
-                style: TextStyle(fontSize: 14),
-              )
+            ? const Text('Please wait...')
             : Text(text),
       ),
     );
