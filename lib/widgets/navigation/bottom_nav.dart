@@ -21,7 +21,6 @@ class BottomNav extends StatelessWidget {
         alignment: Alignment.topCenter,
         clipBehavior: Clip.none,
         children: [
-          // ---------------- NAV BAR ----------------
           Positioned(
             bottom: 0,
             left: 0,
@@ -36,7 +35,6 @@ class BottomNav extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  // LEFT
                   Expanded(
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -47,14 +45,13 @@ class BottomNav extends StatelessWidget {
                     ),
                   ),
 
-                  // CENTER SPACE FOR FAB
                   const SizedBox(width: 56),
 
-                  // RIGHT
                   Expanded(
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
+                        _navItem(Icons.folder, 'Attachments', HomeTab.attachments),
                         _navItem(Icons.settings, 'Settings', HomeTab.settings),
                       ],
                     ),
@@ -64,7 +61,6 @@ class BottomNav extends StatelessWidget {
             ),
           ),
 
-          // ---------------- CENTER FAB ----------------
           Positioned(
             top: -22,
             child: GestureDetector(
@@ -93,8 +89,6 @@ class BottomNav extends StatelessWidget {
       ),
     );
   }
-
-  // ---------------- NAV ITEM ----------------
 
   Widget _navItem(IconData icon, String label, HomeTab tab) {
     final isActive = activeTab == tab;

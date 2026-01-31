@@ -14,56 +14,37 @@ class ExpenseService {
     required String category,
     required String paidBy,
   }) async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) {
-        throw Exception('User not logged in');
-      }
-
-      final expenseJson = {
-        "partnerId": partnerId,
-        "title": title,
-        "amount": amount,
-        "type": type,
-        "category": category,
-        "paidBy": paidBy,
-        "createdBy": user.uid,
-        "createdAt": FieldValue.serverTimestamp(),
-        "updatedAt": FieldValue.serverTimestamp(),
-        "isDeleted": false,
-      };
-
-      final docRef =
-          await _db.collection('expenses').add(expenseJson);
-
-      return docRef.id;
-    } catch (e) {
-      rethrow;
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('User not logged in');
     }
+
+    final expenseJson = {
+      "partnerId": partnerId,
+      "title": title,
+      "amount": amount,
+      "type": type, // expense | income
+      "category": category,
+      "paidBy": paidBy,
+      "createdBy": user.uid,
+      "createdAt": FieldValue.serverTimestamp(),
+      "updatedAt": FieldValue.serverTimestamp(),
+      "isDeleted": false,
+    };
+
+    final docRef = await _db.collection('expenses').add(expenseJson);
+    return docRef.id;
   }
 
-  // ================= GET EXPENSES BY PARTNER =================
-  // static Stream<QuerySnapshot<Map<String, dynamic>>> getExpenses({
-  //   required String partnerId,
-  // }) {
-  //   return _db
-  //       .collection('expenses')
-  //       .where('partnerId', isEqualTo: partnerId)
-  //       .where('isDeleted', isEqualTo: false)
-  //       .orderBy('createdAt', descending: true)
-  //       .snapshots();
-  // }
-
+  // ================= REALTIME GET EXPENSES =================
   static Stream<QuerySnapshot<Map<String, dynamic>>> getExpenses({
     required String partnerId,
   }) {
     return _db
-        .collection("expenses")
-        .where("partnerId", isEqualTo: partnerId)
-        .where("isDeleted", isEqualTo: false)
-        .orderBy("partnerId")
-        .orderBy("isDeleted")
-        .orderBy("createdAt", descending: true)
+        .collection('expenses')
+        .where('partnerId', isEqualTo: partnerId)
+        .where('isDeleted', isEqualTo: false)
+        .orderBy('createdAt', descending: true)
         .snapshots();
   }
 

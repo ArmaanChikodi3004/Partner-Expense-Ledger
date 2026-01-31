@@ -6,8 +6,6 @@ import '../../models/report_range.dart';
 class SixMonthBarChart extends StatelessWidget {
   final List<DemoEntry> entries;
   final ReportRange range;
-
-  // ✅ NEW (optional)
   final int? selectedMonth;
 
   const SixMonthBarChart({
@@ -21,7 +19,6 @@ class SixMonthBarChart extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = _buildChartData();
 
-    // ✅ Prevent "white chart" by forcing scale
     final maxY = data
             .map((e) => e.income > e.expense ? e.income : e.expense)
             .fold<double>(0, (a, b) => a > b ? a : b) *
@@ -89,33 +86,39 @@ class SixMonthBarChart extends StatelessWidget {
       });
     }
 
-    // 🔹 SINGLE MONTH (WEEK-WISE)
+    // 🔹 SINGLE MONTH → WEEK-WISE (FIXED)
     if (range == ReportRange.thisMonth && selectedMonth != null) {
       final year = now.year;
+      final firstDay = DateTime(year, selectedMonth!, 1);
+      final lastDay = DateTime(year, selectedMonth! + 1, 0);
 
-      return List.generate(4, (i) {
-        final start = DateTime(year, selectedMonth!, 1 + (i * 7));
-        final end = start.add(const Duration(days: 6));
+      final weeks = <_ChartUnit>[];
+      DateTime cursor = firstDay;
+      int weekIndex = 1;
 
-        return _fromEntries(
-          label: 'W${i + 1}',
-          entries: entries.where(
-            (e) =>
-                e.date.isAfter(start.subtract(const Duration(days: 1))) &&
-                e.date.isBefore(end.add(const Duration(days: 1))),
+      while (cursor.isBefore(lastDay) || cursor.isAtSameMomentAs(lastDay)) {
+        final weekStart = cursor;
+        final weekEnd = cursor.add(const Duration(days: 6));
+
+        weeks.add(
+          _fromEntries(
+            label: 'W$weekIndex',
+            entries: entries.where(
+              (e) =>
+                  !e.date.isBefore(weekStart) &&
+                  !e.date.isAfter(weekEnd),
+            ),
           ),
         );
-      });
+
+        cursor = cursor.add(const Duration(days: 7));
+        weekIndex++;
+      }
+
+      return weeks;
     }
 
-    // 🔹 CUSTOM RANGE → DAY-WISE
-    return entries.map((e) {
-      return _ChartUnit(
-        label: '${e.date.day}',
-        income: e.type == EntryType.income ? e.amount : 0,
-        expense: e.type == EntryType.expense ? e.amount : 0,
-      );
-    }).toList();
+    return [];
   }
 
   _ChartUnit _fromEntries({
@@ -201,14 +204,9 @@ class SixMonthBarChart extends StatelessWidget {
   }
 
   String _title() {
-    switch (range) {
-      case ReportRange.thisMonth:
-        return 'Monthly Overview';
-      case ReportRange.custom:
-        return 'Custom Range Overview';
-      default:
-        return '6 Month Overview';
-    }
+    return range == ReportRange.thisMonth
+        ? 'Monthly Overview'
+        : '6 Month Overview';
   }
 
   Widget _glassCard({required Widget child}) {

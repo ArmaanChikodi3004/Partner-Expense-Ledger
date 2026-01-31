@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
 
 class ChangeAvatarSheet extends StatelessWidget {
-  const ChangeAvatarSheet({super.key});
+  final VoidCallback onCamera;
+  final VoidCallback onGallery;
+  final VoidCallback onRemove;
+
+  const ChangeAvatarSheet({
+    super.key,
+    required this.onCamera,
+    required this.onGallery,
+    required this.onRemove,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -14,7 +23,6 @@ class ChangeAvatarSheet extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // -------- DRAG HANDLE --------
           Container(
             width: 40,
             height: 4,
@@ -40,29 +48,21 @@ class ChangeAvatarSheet extends StatelessWidget {
           _optionTile(
             icon: Icons.camera_alt,
             label: 'Take Photo',
-            onTap: () {
-              Navigator.pop(context);
-            },
+            onTap: onCamera,
           ),
 
           _optionTile(
             icon: Icons.photo_library,
             label: 'Choose from Gallery',
-            onTap: () {
-              Navigator.pop(context);
-            },
+            onTap: onGallery,
           ),
 
           _optionTile(
             icon: Icons.delete_outline,
             label: 'Remove Avatar',
             color: const Color(0xFFEF4444),
-            onTap: () {
-              Navigator.pop(context);
-            },
+            onTap: onRemove,
           ),
-
-          const SizedBox(height: 12),
         ],
       ),
     );
@@ -76,7 +76,7 @@ class ChangeAvatarSheet extends StatelessWidget {
   }) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 14),
         child: Row(
           children: [

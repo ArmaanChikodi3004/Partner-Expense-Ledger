@@ -1,12 +1,21 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../charts/category_donut_chart.dart';
 
 class CategoryChartCard extends StatelessWidget {
-  const CategoryChartCard({super.key});
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> expenses;
+
+  const CategoryChartCard({
+    super.key,
+    required this.expenses,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final categoryTotals = _calculateCategoryTotals();
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: BackdropFilter(
@@ -22,9 +31,9 @@ class CategoryChartCard extends StatelessWidget {
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               // ---------------- TITLE ----------------
-              Text(
+              const Text(
                 'Spending by Category',
                 style: TextStyle(
                   color: Colors.white,
@@ -33,14 +42,35 @@ class CategoryChartCard extends StatelessWidget {
                 ),
               ),
 
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
 
               // ---------------- CHART ----------------
-              CategoryDonutChart(),
+              CategoryDonutChart(
+                categoryTotals: categoryTotals,
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  // 🔒 CORE LOGIC — EXPENSE ONLY
+  Map<String, double> _calculateCategoryTotals() {
+    final Map<String, double> totals = {};
+
+    for (final doc in expenses) {
+      final data = doc.data();
+
+      // ❌ Ignore income completely
+      if (data['type'] != 'expense') continue;
+
+      final category = data['category'] as String;
+      final amount = (data['amount'] as num).toDouble();
+
+      totals[category] = (totals[category] ?? 0) + amount;
+    }
+
+    return totals;
   }
 }

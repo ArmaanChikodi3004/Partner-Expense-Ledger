@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 import '../../widgets/navigation/bottom_nav.dart';
 import '../../widgets/balance/balance_card.dart';
 import '../../widgets/cards/category_chart_card.dart';
 import '../../widgets/transactions/transaction_list.dart';
-import '../reports/reports_screen.dart';
-import '../settings/settings_screen.dart';
 import '../../widgets/entry/add_entry_sheet.dart';
 
-// 🔹 NEW
-import '../../services/partner_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../reports/reports_screen.dart';
+import '../settings/settings_screen.dart';
+import '../attachments/attachments_screen.dart'; // ✅ CORRECT
 
-enum HomeTab { home, reports, settings }
+import '../../services/expense_service.dart';
+import '../../constants/active_partner.dart';
+import '../../services/user_service.dart';
+
+enum HomeTab { home, reports, attachments, settings }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,39 +28,27 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   HomeTab activeTab = HomeTab.home;
 
-  // ✅ MULTI-SELECT USER FILTER
-  final Set<String> selectedUsers = {'All'};
+  // 🔥 STORE SELECTED USER *UIDs*
+  final Set<String> selectedUserUids = {'ALL'};
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0B0E1A),
 
-      // ---------------- HEADER ----------------
       appBar: AppBar(
         backgroundColor: const Color(0xFF0B0E1A),
         elevation: 0,
-        title: GestureDetector(
-          onTap: () => setState(() => activeTab = HomeTab.home),
-          child: Image.asset(
-            'assets/LOGO_1.png',
-            height: 36,
-          ),
-        ),
+        title: Image.asset('assets/LOGO_1.png', height: 36),
       ),
 
-      // ---------------- BODY ----------------
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: _buildActiveTab(),
-          ),
+          child: _buildActiveTab(),
         ),
       ),
 
-      // ---------------- BOTTOM NAV ----------------
       bottomNavigationBar: BottomNav(
         activeTab: activeTab,
         onTabChange: (tab) => setState(() => activeTab = tab),
@@ -71,121 +64,110 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ---------------- TAB CONTENT ----------------
-
   Widget _buildActiveTab() {
-    switch (activeTab) {
-      case HomeTab.home:
-        return SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const BalanceCard(
-                balance: 12500,
-                income: 18000,
-                expense: 5500,
-              ),
-
-              const SizedBox(height: 20),
-
-              // ---------------- SPENDING BY CATEGORY ----------------
-              _spendingCategorySection(),
-
-              const SizedBox(height: 20),
-
-              const TransactionList(),
-
-              const SizedBox(height: 20),
-
-              // 🔥 TEMP TEST BUTTON (Step 7.2)
-              ElevatedButton(
-  onPressed: () async {
-    try {
-      final uid = FirebaseAuth.instance.currentUser!.uid;
-
-      final partnerId = await PartnerService.createPartner(
-        name: 'Demo Partner Group',
-        memberUids: [uid],
-      );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Partner created: $partnerId'),
+  switch (activeTab) {
+    case HomeTab.home:
+      return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: ExpenseService.getExpenses(
+          partnerId: activePartnerId,
         ),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const SizedBox();
+
+          final allExpenses = snapshot.data!.docs;
+
+          final filteredExpenses = selectedUserUids.contains('ALL')
+              ? allExpenses
+              : allExpenses
+                  .where((doc) =>
+                      selectedUserUids.contains(doc['paidBy']))
+                  .toList();
+
+          double income = 0;
+          double expense = 0;
+
+          for (final doc in filteredExpenses) {
+            final data = doc.data();
+            final amount = (data['amount'] as num).toDouble();
+
+            if (data['type'] == 'income') {
+              income += amount;
+            } else if (data['type'] == 'expense') {
+              expense += amount;
+            }
+          }
+
+          final balance = income - expense;
+
+          final userUids = allExpenses
+              .map((doc) => doc['paidBy'] as String)
+              .toSet()
+              .toList();
+
+          return SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                BalanceCard(
+                  balance: balance.toInt(),
+                  income: income.toInt(),
+                  expense: expense.toInt(),
+                ),
+                const SizedBox(height: 20),
+                _userMultiSelectChips(userUids),
+                const SizedBox(height: 12),
+                CategoryChartCard(expenses: filteredExpenses),
+                const SizedBox(height: 20),
+                TransactionList(expenses: filteredExpenses),
+                const SizedBox(height: 110),
+              ],
+            ),
+          );
+        },
       );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  },
-  child: const Text('Create Demo Partner'),
-),
 
+    case HomeTab.reports:
+      return const ReportsScreen();
 
-              const SizedBox(height: 110),
-            ],
-          ),
-        );
+    case HomeTab.attachments:
+  return const AttachmentsScreen();
 
-      case HomeTab.reports:
-        return const ReportsScreen();
-
-      case HomeTab.settings:
-        return const SettingsScreen();
-    }
+    case HomeTab.settings:
+      return const SettingsScreen();
   }
+}
 
-  // ---------------- SPENDING CATEGORY SECTION ----------------
-
-  Widget _spendingCategorySection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _userMultiSelectChips(),
-        const SizedBox(height: 12),
-        const CategoryChartCard(),
-      ],
-    );
-  }
 
   // ---------------- MULTI-SELECT USER CHIPS ----------------
-
-  Widget _userMultiSelectChips() {
-    final users = ['All', 'Armaan', 'Waize', 'Sam'];
+  Widget _userMultiSelectChips(List<String> userUids) {
+    final all = ['ALL', ...userUids];
 
     return SizedBox(
       height: 40,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: users.length,
+        itemCount: all.length,
         separatorBuilder: (_, __) => const SizedBox(width: 10),
         itemBuilder: (context, index) {
-          final user = users[index];
-          final isActive = selectedUsers.contains(user);
+          final uid = all[index];
+          final isActive = selectedUserUids.contains(uid);
 
           return GestureDetector(
             onTap: () {
               setState(() {
-                if (user == 'All') {
-                  selectedUsers
+                if (uid == 'ALL') {
+                  selectedUserUids
                     ..clear()
-                    ..add('All');
+                    ..add('ALL');
                 } else {
-                  selectedUsers.remove('All');
+                  selectedUserUids.remove('ALL');
+                  isActive
+                      ? selectedUserUids.remove(uid)
+                      : selectedUserUids.add(uid);
 
-                  if (isActive) {
-                    selectedUsers.remove(user);
-                  } else {
-                    selectedUsers.add(user);
-                  }
-
-                  if (selectedUsers.isEmpty) {
-                    selectedUsers.add('All');
+                  if (selectedUserUids.isEmpty) {
+                    selectedUserUids.add('ALL');
                   }
                 }
               });
@@ -198,21 +180,27 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? const Color(0xFF6366F1)
                     : Colors.white.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: isActive
-                      ? const Color(0xFF6366F1)
-                      : Colors.white.withOpacity(0.12),
-                ),
               ),
               alignment: Alignment.center,
-              child: Text(
-                user,
-                style: TextStyle(
-                  color: isActive ? Colors.white : Colors.white70,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
-              ),
+              child: uid == 'ALL'
+                  ? const Text(
+                      'All',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    )
+                  : FutureBuilder<String>(
+                      future: UserService.getUserName(uid),
+                      builder: (_, snap) => Text(
+                        snap.data ?? '...',
+                        style: TextStyle(
+                          color:
+                              isActive ? Colors.white : Colors.white70,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
             ),
           );
         },

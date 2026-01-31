@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../../services/expense_service.dart';
-
-// 🔴 TEMP: replace later with provider / selected partner
-const String activePartnerId = 'SpPtxpqYGsi9IopBOF7W';
+import '../../services/user_service.dart';
 
 // ---------------- DATE FILTER ENUM ----------------
 enum DateFilter {
@@ -18,7 +15,12 @@ enum DateFilter {
 
 // ---------------- TRANSACTION LIST ----------------
 class TransactionList extends StatefulWidget {
-  const TransactionList({super.key});
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> expenses;
+
+  const TransactionList({
+    super.key,
+    required this.expenses,
+  });
 
   @override
   State<TransactionList> createState() => _TransactionListState();
@@ -51,8 +53,8 @@ class _TransactionListState extends State<TransactionList> {
         break;
       case DateFilter.custom:
         if (customRange == null) return true;
-        return date.isAfter(customRange!.start) &&
-            date.isBefore(customRange!.end);
+        return !date.isBefore(customRange!.start) &&
+            !date.isAfter(customRange!.end);
     }
 
     return date.isAfter(start);
@@ -61,6 +63,12 @@ class _TransactionListState extends State<TransactionList> {
   // ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
+    final filteredDocs = widget.expenses.where((doc) {
+      final ts = doc['createdAt'] as Timestamp?;
+      if (ts == null) return false;
+      return _matchesDateFilter(ts.toDate());
+    }).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -82,48 +90,23 @@ class _TransactionListState extends State<TransactionList> {
 
         const SizedBox(height: 16),
 
-        // -------- FIRESTORE TRANSACTIONS --------
-        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: ExpenseService.getExpenses(
-            partnerId: activePartnerId,
+        if (filteredDocs.isEmpty)
+          const Text(
+            'No transactions found',
+            style: TextStyle(color: Colors.white60),
           ),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Text(
-                'Loading...',
-                style: TextStyle(color: Colors.white60),
-              );
-            }
-            
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return const Text(
-                'No transactions found',
-                style: TextStyle(color: Colors.white60),
-              );
-            }
 
-            final docs = snapshot.data!.docs;
+        ...filteredDocs.map((doc) {
+          final data = doc.data();
+          final isIncome = data['type'] == 'income';
 
-            final filteredDocs = docs.where((doc) {
-              final ts = doc['createdAt'] as Timestamp?;
-              if (ts == null) return false;
-              return _matchesDateFilter(ts.toDate());
-            }).toList();
-
-            if (filteredDocs.isEmpty) {
-              return const Text(
-                'No transactions found',
-                style: TextStyle(color: Colors.white60),
-              );
-            }
-
-            return Column(
-              children: filteredDocs
-                  .map((doc) => _transactionTile(doc))
-                  .toList(),
-            );
-          },
-        ),
+          return _transactionTile(
+            title: data['title'],
+            paidBy: data['paidBy'],
+            amount: (data['amount'] as num).toInt(),
+            isIncome: isIncome,
+          );
+        }),
       ],
     );
   }
@@ -212,10 +195,12 @@ class _TransactionListState extends State<TransactionList> {
   }
 
   // ---------------- TRANSACTION TILE ----------------
-  Widget _transactionTile(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data();
-    final isIncome = data['type'] == 'income';
-
+  Widget _transactionTile({
+    required String title,
+    required String paidBy,
+    required int amount,
+    required bool isIncome,
+  }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
@@ -239,24 +224,30 @@ class _TransactionListState extends State<TransactionList> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  data['title'],
+                  title,
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                Text(
-                  'Added by ${data['paidBy']}',
-                  style: const TextStyle(
-                    color: Colors.white60,
-                    fontSize: 11,
-                  ),
+                FutureBuilder<String>(
+                  future: UserService.getUserName(paidBy),
+                  builder: (context, snapshot) {
+                    final name = snapshot.data ?? '...';
+                    return Text(
+                      'Added by $name',
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        fontSize: 11,
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
           ),
           Text(
-            '${isIncome ? '+' : '-'}₹${data['amount']}',
+            '${isIncome ? '+' : '-'}₹$amount',
             style: TextStyle(
               color:
                   isIncome ? Colors.greenAccent : Colors.redAccent,

@@ -1,12 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+
 import '../../data/demo_categories.dart';
+import '../../constants/active_partner.dart';
 
 // 🔹 FIREBASE
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/expense_service.dart';
-
-// 🔴 TEMP: REAL partnerId from Firestore
-const String activePartnerId = 'SpPtxpqYGsi91opBOF7W';
 
 class AddEntrySheet extends StatefulWidget {
   const AddEntrySheet({super.key});
@@ -23,6 +24,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
   final TextEditingController descriptionController = TextEditingController();
 
   final List<String> attachments = [];
+  final ImagePicker _picker = ImagePicker();
 
   bool isSaving = false;
 
@@ -33,7 +35,6 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
     super.dispose();
   }
 
-  /// 🔴 Expense | 🔵 Income
   Color get _submitColor =>
       selectedType == EntryType.expense
           ? const Color(0xFFEF4444)
@@ -124,7 +125,8 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
                 color: Colors.white12,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(Icons.close, color: Colors.white70, size: 18),
+              child:
+                  const Icon(Icons.close, color: Colors.white70, size: 18),
             ),
           ),
         ],
@@ -289,15 +291,11 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
     );
   }
 
-  // ───────── ATTACHMENTS ─────────
+  // ───────── ATTACHMENTS (UPDATED ONLY) ─────────
 
   Widget _attachments() {
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          attachments.add('receipt_${attachments.length + 1}.jpg');
-        });
-      },
+      onTap: _openAttachmentPicker,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 18),
@@ -320,7 +318,58 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
     );
   }
 
-  // ───────── SUBMIT BUTTON ─────────
+  void _openAttachmentPicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: const BoxDecoration(
+          color: Color(0xFF1F2937),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.white),
+              title:
+                  const Text('Camera', style: TextStyle(color: Colors.white)),
+              onTap: _pickCamera,
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo, color: Colors.white),
+              title:
+                  const Text('Gallery', style: TextStyle(color: Colors.white)),
+              onTap: _pickGallery,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickCamera() async {
+    Navigator.pop(context);
+    final x = await _picker.pickImage(source: ImageSource.camera);
+    if (x != null) {
+      setState(() {
+        attachments.add(x.name);
+      });
+    }
+  }
+
+  Future<void> _pickGallery() async {
+    Navigator.pop(context);
+    final x = await _picker.pickImage(source: ImageSource.gallery);
+    if (x != null) {
+      setState(() {
+        attachments.add(x.name);
+      });
+    }
+  }
+
+  // ───────── SUBMIT ─────────
 
   Widget _submitButton() {
     final enabled =
@@ -381,13 +430,6 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
           const SnackBar(content: Text('Entry added successfully')),
         );
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
     } finally {
       if (mounted) setState(() => isSaving = false);
     }

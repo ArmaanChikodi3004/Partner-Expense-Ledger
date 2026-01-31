@@ -2,10 +2,27 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 class CategoryDonutChart extends StatelessWidget {
-  const CategoryDonutChart({super.key});
+  final Map<String, double> categoryTotals;
+
+  const CategoryDonutChart({
+    super.key,
+    required this.categoryTotals,
+  });
 
   @override
   Widget build(BuildContext context) {
+    if (categoryTotals.isEmpty) {
+      return const Text(
+        'No expense data',
+        style: TextStyle(color: Colors.white60),
+      );
+    }
+
+    final total =
+        categoryTotals.values.fold(0.0, (a, b) => a + b);
+
+    final entries = categoryTotals.entries.toList();
+
     return Row(
       children: [
         // ---------------- DONUT ----------------
@@ -17,8 +34,18 @@ class CategoryDonutChart extends StatelessWidget {
               sectionsSpace: 4,
               centerSpaceRadius: 45,
               startDegreeOffset: -90,
-              sections: _sections(),
               borderData: FlBorderData(show: false),
+              sections: entries.map((entry) {
+                final percent =
+                    (entry.value / total) * 100;
+
+                return PieChartSectionData(
+                  value: entry.value,
+                  color: _colorForCategory(entry.key),
+                  radius: 18,
+                  showTitle: false,
+                );
+              }).toList(),
             ),
           ),
         ),
@@ -28,52 +55,50 @@ class CategoryDonutChart extends StatelessWidget {
         // ---------------- LEGEND ----------------
         Expanded(
           child: Column(
-            children: const [
-              _LegendItem(
-                color: Color(0xFF8B5CF6),
-                label: '🏠 Rent',
-                value: '69%',
-              ),
-              SizedBox(height: 14),
-              _LegendItem(
-                color: Color(0xFFEF4444),
-                label: '🍔 Food',
-                value: '7%',
-              ),
-              SizedBox(height: 14),
-              _LegendItem(
-                color: Color(0xFF3B82F6),
-                label: '✈️ Travel',
-                value: '24%',
-              ),
-            ],
+            children: entries.map((entry) {
+              final percent =
+                  (entry.value / total) * 100;
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: _LegendItem(
+                  color: _colorForCategory(entry.key),
+                  label: '${_emojiForCategory(entry.key)} ${entry.key}',
+                  value: '${percent.toStringAsFixed(1)}%',
+                ),
+              );
+            }).toList(),
           ),
         ),
       ],
     );
   }
 
-  List<PieChartSectionData> _sections() {
-    return [
-      PieChartSectionData(
-        value: 69,
-        color: const Color(0xFF8B5CF6),
-        radius: 18,
-        showTitle: false,
-      ),
-      PieChartSectionData(
-        value: 7,
-        color: const Color(0xFFEF4444),
-        radius: 18,
-        showTitle: false,
-      ),
-      PieChartSectionData(
-        value: 24,
-        color: const Color(0xFF3B82F6),
-        radius: 18,
-        showTitle: false,
-      ),
-    ];
+  // ---------------- HELPERS ----------------
+  Color _colorForCategory(String category) {
+    switch (category) {
+      case 'rent':
+        return const Color(0xFF8B5CF6);
+      case 'food':
+        return const Color(0xFFEF4444);
+      case 'travel':
+        return const Color(0xFF3B82F6);
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _emojiForCategory(String category) {
+    switch (category) {
+      case 'rent':
+        return '🏠';
+      case 'food':
+        return '🍔';
+      case 'travel':
+        return '✈️';
+      default:
+        return '🧾';
+    }
   }
 }
 
