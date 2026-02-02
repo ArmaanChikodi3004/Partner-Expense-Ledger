@@ -36,7 +36,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       case DateChip.today:
         return DateTimeRange(
           start: DateTime(now.year, now.month, now.day),
-          end: DateTime(now.year, now.month, now.day, 23, 59, 59), // ✅ FIX
+          end: DateTime(now.year, now.month, now.day, 23, 59, 59),
         );
 
       case DateChip.lastMonth:
@@ -94,36 +94,33 @@ class _ReportsScreenState extends State<ReportsScreen> {
         final docs = snapshot.data!.docs;
         final now = DateTime.now();
 
-        // 🔹 SUMMARY RANGE (date chips only)
         final summaryRange =
             activeDateChip == DateChip.custom && selectedRange != null
                 ? selectedRange!
                 : _rangeForChip(activeDateChip);
 
- final summaryDocs = docs.where((doc) {
-  final ts = doc['createdAt'] as Timestamp?;
-  if (ts == null) return false;
+        final summaryDocs = docs.where((doc) {
+          final ts = doc['createdAt'] as Timestamp?;
+          if (ts == null) return false;
 
-  final d = ts.toDate();
+          final d = ts.toDate();
 
-  final dayOnly = DateTime(d.year, d.month, d.day);
-  final startOnly = DateTime(
-    summaryRange.start.year,
-    summaryRange.start.month,
-    summaryRange.start.day,
-  );
-  final endOnly = DateTime(
-    summaryRange.end.year,
-    summaryRange.end.month,
-    summaryRange.end.day,
-  );
+          final dayOnly = DateTime(d.year, d.month, d.day);
+          final startOnly = DateTime(
+            summaryRange.start.year,
+            summaryRange.start.month,
+            summaryRange.start.day,
+          );
+          final endOnly = DateTime(
+            summaryRange.end.year,
+            summaryRange.end.month,
+            summaryRange.end.day,
+          );
 
-  return !dayOnly.isBefore(startOnly) &&
-         !dayOnly.isAfter(endOnly);
-}).toList();
+          return !dayOnly.isBefore(startOnly) &&
+              !dayOnly.isAfter(endOnly);
+        }).toList();
 
-
-        // 🔹 CHART DATA (independent of summary)
         final chartDocs = chartMode == ChartMode.singleMonth
             ? docs.where((doc) {
                 final ts = doc['createdAt'] as Timestamp?;
@@ -157,9 +154,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ),
 
               const SizedBox(height: 16),
-
               _dateChips(context),
-
               const SizedBox(height: 16),
 
               _summaryCard(
@@ -170,9 +165,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ),
 
               const SizedBox(height: 24),
-
               _chartChips(context),
-
               const SizedBox(height: 16),
 
               SixMonthBarChart(
@@ -185,9 +178,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ),
 
               const SizedBox(height: 24),
-
               _topSpendingSection(summaryEntries),
-
               const SizedBox(height: 120),
             ],
           ),
@@ -195,7 +186,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
       },
     );
   }
-
 
   Widget _summaryCard(
     double income,
@@ -226,30 +216,61 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  Widget _stat(String label, String value, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.white70)),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: TextStyle(
-              color: color,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+  // 🔥 ONLY UPDATED PART (emoji added below)
+ Widget _stat(String label, String value, Color color) {
+  String emoji;
+  switch (label) {
+    case 'Income':
+      emoji = '📈';
+      break;
+    case 'Expenses':
+      emoji = '📉';
+      break;
+    case 'Net Balance':
+      emoji = '📊';
+      break;
+    case 'Transactions':
+      emoji = '🧾';
+      break;
+    default:
+      emoji = '';
+  }
+
+  return Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.12),
+      borderRadius: BorderRadius.circular(18),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.white70)),
+        const SizedBox(height: 6),
+        Text(
+          value,
+          style: TextStyle(
+            color: color, // unchanged
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const Spacer(),
+        Align(
+          alignment: Alignment.bottomRight,
+          child: Text(
+            emoji,
+            style: const TextStyle(
+              fontSize: 26,
+              color: Colors.black87, // ✅ darker & visible
             ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
+
 
   Widget _topSpendingSection(List<DemoEntry> entries) {
     final expenses =
