@@ -145,8 +145,6 @@ class SettingsScreen extends StatelessWidget {
 
               const SizedBox(height: 20),
 
-              
-
               // ---------------- SUPPORT ----------------
               _glassCard(
                 child: Column(
@@ -169,19 +167,21 @@ class SettingsScreen extends StatelessWidget {
 
               const SizedBox(height: 30),
 
-              // ---------------- FOOTER ----------------
-              const Center(
+              // ---------------- FOOTER (UPDATED) ----------------
+              Center(
                 child: Column(
                   children: [
-                    Text(
-                      'Partner Expense Tracker',
+                    const Text(
+                      'Partner Ledger',
                       style: TextStyle(color: Colors.white54),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Text(
-                      '© 2026 Partner Ledger',
-                      style:
-                          TextStyle(color: Colors.white38, fontSize: 12),
+                      '© ${DateTime.now().year} Partner Ledger',
+                      style: const TextStyle(
+                        color: Colors.white38,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
