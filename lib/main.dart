@@ -20,7 +20,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+
 import 'auth_gate.dart';
+import 'screens/splash/splash_screen.dart'; // ✅ IMPORTANT
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,9 +35,9 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp( // ❗ NOT const
       debugShowCheckedModeBanner: false,
-      home: AuthGate(), // ✅ FIX
+      home: SplashScreen(), // ✅ START WITH SPLASH
     );
   }
 }

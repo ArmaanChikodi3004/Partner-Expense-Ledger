@@ -145,35 +145,7 @@ class SettingsScreen extends StatelessWidget {
 
               const SizedBox(height: 20),
 
-              // ---------------- PREFERENCES ----------------
-              _glassCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Preferences',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _settingTile(
-                      icon: Icons.notifications,
-                      title: 'Notifications',
-                      subtitle: 'Get alerts for new entries',
-                      trailing: Switch(
-                        value: true,
-                        onChanged: (_) {},
-                        activeColor: const Color(0xFF6366F1),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
+              
 
               // ---------------- SUPPORT ----------------
               _glassCard(
