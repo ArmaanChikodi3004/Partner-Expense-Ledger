@@ -1,31 +1,35 @@
-import 'package:flutter/material.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+// import 'package:flutter/material.dart';
+// import 'package:webview_flutter/webview_flutter.dart';
 
-class AttachmentViewerScreen extends StatelessWidget {
-  final String fileName;
-  final String fileUrl;
-  final String fileType;
+// class AttachmentViewerScreen extends StatelessWidget {
+//   final String url;
+//   final String type;
 
-  const AttachmentViewerScreen({
-    super.key,
-    required this.fileName,
-    required this.fileUrl,
-    required this.fileType,
-  });
+//   const AttachmentViewerScreen({
+//     super.key,
+//     required this.url,
+//     required this.type,
+//   });
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(fileName)),
-      body: fileType == 'image'
-          ? InteractiveViewer(
-              child: Image.network(fileUrl),
-            )
-          : WebViewWidget(
-              controller: WebViewController()
-                ..setJavaScriptMode(JavaScriptMode.unrestricted)
-                ..loadRequest(Uri.parse(fileUrl)),
-            ),
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     if (type == 'image') {
+//       return Scaffold(
+//         appBar: AppBar(),
+//         body: Center(
+//           child: Image.network(url),
+//         ),
+//       );
+//     }
+
+//     // PDF / DOC
+//     return Scaffold(
+//       appBar: AppBar(),
+//       body: WebViewWidget(
+//         controller: WebViewController()
+//           ..setJavaScriptMode(JavaScriptMode.unrestricted)
+//           ..loadRequest(Uri.parse(url)),
+//       ),
+//     );
+//   }
+// }

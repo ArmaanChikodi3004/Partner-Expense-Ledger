@@ -1,6 +1,4 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../data/demo_categories.dart';
 import '../../constants/active_partner.dart';
@@ -22,9 +20,6 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
 
   final TextEditingController amountController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
-
-  final List<String> attachments = [];
-  final ImagePicker _picker = ImagePicker();
 
   bool isSaving = false;
 
@@ -66,24 +61,16 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
 
             _sectionLabel('Amount'),
             _amountField(),
-
             const SizedBox(height: 24),
 
             _sectionLabel('Category'),
             const SizedBox(height: 12),
             _categoryGrid(categories),
-
             const SizedBox(height: 24),
 
             _sectionLabel('Description (optional)'),
             _descriptionField(),
-
-            const SizedBox(height: 24),
-
-            _sectionLabel('Attachments'),
-            _attachments(),
-
-            const SizedBox(height: 28),
+            const SizedBox(height: 32),
 
             _submitButton(),
           ],
@@ -92,7 +79,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
     );
   }
 
-  // ───────────────── UI PARTS ─────────────────
+  // ───────── UI HELPERS ─────────
 
   Widget _dragHandle() => Center(
         child: Container(
@@ -125,8 +112,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
                 color: Colors.white12,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child:
-                  const Icon(Icons.close, color: Colors.white70, size: 18),
+              child: const Icon(Icons.close, color: Colors.white70, size: 18),
             ),
           ),
         ],
@@ -291,84 +277,6 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
     );
   }
 
-  // ───────── ATTACHMENTS (UPDATED ONLY) ─────────
-
-  Widget _attachments() {
-    return GestureDetector(
-      onTap: _openAttachmentPicker,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 18),
-        decoration: BoxDecoration(
-          color: Colors.white10,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white24),
-        ),
-        child: Column(
-          children: const [
-            Icon(Icons.upload, color: Colors.white54),
-            SizedBox(height: 6),
-            Text(
-              'Upload receipt or document',
-              style: TextStyle(color: Colors.white60),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _openAttachmentPicker() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: const BoxDecoration(
-          color: Color(0xFF1F2937),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt, color: Colors.white),
-              title:
-                  const Text('Camera', style: TextStyle(color: Colors.white)),
-              onTap: _pickCamera,
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo, color: Colors.white),
-              title:
-                  const Text('Gallery', style: TextStyle(color: Colors.white)),
-              onTap: _pickGallery,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _pickCamera() async {
-    Navigator.pop(context);
-    final x = await _picker.pickImage(source: ImageSource.camera);
-    if (x != null) {
-      setState(() {
-        attachments.add(x.name);
-      });
-    }
-  }
-
-  Future<void> _pickGallery() async {
-    Navigator.pop(context);
-    final x = await _picker.pickImage(source: ImageSource.gallery);
-    if (x != null) {
-      setState(() {
-        attachments.add(x.name);
-      });
-    }
-  }
-
   // ───────── SUBMIT ─────────
 
   Widget _submitButton() {
@@ -384,8 +292,8 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
         onPressed: enabled ? _handleSubmit : null,
         style: ElevatedButton.styleFrom(
           backgroundColor: _submitColor,
-          disabledBackgroundColor: Colors.white.withOpacity(0.15),
           foregroundColor: Colors.white,
+          disabledBackgroundColor: Colors.white.withOpacity(0.15),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(28),
           ),

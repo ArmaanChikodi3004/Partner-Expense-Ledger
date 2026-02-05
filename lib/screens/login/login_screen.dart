@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../home/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -14,7 +15,9 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+
   bool isLoading = false;
+  bool _obscurePassword = true; // 👁 show / hide password
 
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
@@ -35,6 +38,7 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
+  // ---------------- FEEDBACK ----------------
   void _showError(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -57,7 +61,7 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  // 🔐 LOGIN
+  // ---------------- LOGIN ----------------
   Future<void> _login() async {
     try {
       setState(() => isLoading = true);
@@ -81,12 +85,11 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  // 🆕 SIGN UP (FIXED FLOW)
+  // ---------------- SIGN UP ----------------
   Future<void> _signup() async {
     try {
       setState(() => isLoading = true);
 
-      // 1️⃣ AUTH CREATE (this is what matters for redirect)
       final userCredential =
           await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: emailController.text.trim(),
@@ -95,24 +98,16 @@ class _LoginScreenState extends State<LoginScreen>
 
       final uid = userCredential.user!.uid;
 
-      // 2️⃣ FIRESTORE SAVE (NON-BLOCKING FOR NAVIGATION)
       try {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .set({
-          "name": nameController.text.trim(),
-          "email": emailController.text.trim(),
-          "createdAt": FieldValue.serverTimestamp(),
+        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+          'name': nameController.text.trim(),
+          'email': emailController.text.trim(),
+          'createdAt': FieldValue.serverTimestamp(),
         });
-      } catch (e) {
-        // Firestore failed — NOT fatal for navigation
-        debugPrint('Firestore save failed: $e');
-      }
+      } catch (_) {}
 
       if (!mounted) return;
 
-      // 3️⃣ ALWAYS REDIRECT AFTER AUTH SUCCESS
       _showSuccess('Account created successfully!');
       Navigator.pushReplacement(
         context,
@@ -125,6 +120,7 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
+  // ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -136,7 +132,7 @@ class _LoginScreenState extends State<LoginScreen>
             width: 380,
             child: Column(
               children: [
-                // 🔵 LOGO + TITLE
+                // LOGO
                 Column(
                   children: [
                     Container(
@@ -183,9 +179,8 @@ class _LoginScreenState extends State<LoginScreen>
                       decoration: BoxDecoration(
                         color: const Color(0xFF111827).withOpacity(0.6),
                         borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.1),
-                        ),
+                        border:
+                            Border.all(color: Colors.white.withOpacity(0.1)),
                       ),
                       child: Column(
                         children: [
@@ -223,6 +218,7 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
+  // ---------------- FORMS ----------------
   Widget _loginForm() {
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -238,7 +234,7 @@ class _LoginScreenState extends State<LoginScreen>
             hint: '••••••••',
             obscure: true,
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 28),
           _primaryButton('Login'),
         ],
       ),
@@ -263,13 +259,14 @@ class _LoginScreenState extends State<LoginScreen>
             hint: '••••••••',
             obscure: true,
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 28),
           _primaryButton('Create Account'),
         ],
       ),
     );
   }
 
+  // ---------------- COMPONENTS ----------------
   Widget _label(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -287,7 +284,7 @@ class _LoginScreenState extends State<LoginScreen>
   }) {
     return TextField(
       controller: controller,
-      obscureText: obscure,
+      obscureText: obscure ? _obscurePassword : false,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hint,
@@ -295,9 +292,25 @@ class _LoginScreenState extends State<LoginScreen>
         filled: true,
         fillColor: const Color(0xFF1F2937),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
         ),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        suffixIcon: obscure
+            ? IconButton(
+                icon: Icon(
+                  _obscurePassword
+                      ? Icons.visibility_off
+                      : Icons.visibility,
+                  color: Colors.white54,
+                  size: 20,
+                ),
+                onPressed: () {
+                  setState(() => _obscurePassword = !_obscurePassword);
+                },
+              )
+            : null,
       ),
     );
   }
@@ -305,16 +318,49 @@ class _LoginScreenState extends State<LoginScreen>
   Widget _primaryButton(String text) {
     return SizedBox(
       width: double.infinity,
-      height: 48,
+      height: 52,
       child: ElevatedButton(
         onPressed: isLoading
             ? null
             : () {
                 _tabController.index == 0 ? _login() : _signup();
               },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF6366F1),
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          elevation: 0,
+        ),
         child: isLoading
             ? const Text('Please wait...')
-            : Text(text),
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    text,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_forward,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }

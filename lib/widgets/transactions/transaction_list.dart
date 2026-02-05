@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
 import '../../services/user_service.dart';
 
-// ---------------- DATE FILTER ENUM ----------------
+// ---------------- SINGLE SOURCE DATE FILTER ENUM ----------------
 enum DateFilter {
   today,
   last2Days,
@@ -13,13 +12,16 @@ enum DateFilter {
   custom,
 }
 
-// ---------------- TRANSACTION LIST ----------------
 class TransactionList extends StatefulWidget {
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> expenses;
+
+  // 🔥 Notify parent when date filter changes
+  final ValueChanged<DateFilter>? onDateChange;
 
   const TransactionList({
     super.key,
     required this.expenses,
+    this.onDateChange,
   });
 
   @override
@@ -30,11 +32,11 @@ class _TransactionListState extends State<TransactionList> {
   DateFilter activeFilter = DateFilter.last7Days;
   DateTimeRange? customRange;
 
-  // ---------------- DATE FILTER LOGIC ----------------
-  bool _matchesDateFilter(DateTime date) {
+  // ---------------- DATE MATCH ----------------
+  bool _matchesDate(DateTime date) {
     final now = DateTime.now();
-
     DateTime start;
+
     switch (activeFilter) {
       case DateFilter.today:
         start = DateTime(now.year, now.month, now.day);
@@ -60,19 +62,18 @@ class _TransactionListState extends State<TransactionList> {
     return date.isAfter(start);
   }
 
-  // ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
     final filteredDocs = widget.expenses.where((doc) {
       final ts = doc['createdAt'] as Timestamp?;
       if (ts == null) return false;
-      return _matchesDateFilter(ts.toDate());
+      return _matchesDate(ts.toDate());
     }).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // -------- TITLE + DROPDOWN --------
+        // -------- TITLE + FILTER --------
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -96,22 +97,12 @@ class _TransactionListState extends State<TransactionList> {
             style: TextStyle(color: Colors.white60),
           ),
 
-        ...filteredDocs.map((doc) {
-          final data = doc.data();
-          final isIncome = data['type'] == 'income';
-
-          return _transactionTile(
-            title: data['title'],
-            paidBy: data['paidBy'],
-            amount: (data['amount'] as num).toInt(),
-            isIncome: isIncome,
-          );
-        }),
+        ...filteredDocs.map(_transactionTile),
       ],
     );
   }
 
-  // ---------------- DATE FILTER DROPDOWN ----------------
+  // ---------------- FILTER DROPDOWN ----------------
   Widget _dateFilterDropdown(BuildContext context) {
     return PopupMenuButton<DateFilter>(
       onSelected: (filter) async {
@@ -119,21 +110,16 @@ class _TransactionListState extends State<TransactionList> {
           await _pickCustomRange(context);
         } else {
           setState(() => activeFilter = filter);
+          widget.onDateChange?.call(filter);
         }
       },
       color: const Color(0xFF111827),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-      ),
-      itemBuilder: (_) => DateFilter.values.map((filter) {
+      itemBuilder: (_) => DateFilter.values.map((f) {
         return PopupMenuItem<DateFilter>(
-          value: filter,
+          value: f,
           child: Text(
-            _labelForFilter(filter),
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w500,
-            ),
+            _labelForFilter(f),
+            style: const TextStyle(color: Colors.white),
           ),
         );
       }).toList(),
@@ -154,36 +140,20 @@ class _TransactionListState extends State<TransactionList> {
               ),
             ),
             const SizedBox(width: 6),
-            const Icon(
-              Icons.keyboard_arrow_down,
-              color: Colors.white,
-              size: 18,
-            ),
+            const Icon(Icons.keyboard_arrow_down, color: Colors.white),
           ],
         ),
       ),
     );
   }
 
-  // ---------------- CUSTOM DATE PICKER ----------------
+  // ---------------- CUSTOM RANGE ----------------
   Future<void> _pickCustomRange(BuildContext context) async {
     final picked = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
       initialDateRange: customRange,
-      builder: (context, child) {
-        return Theme(
-          data: ThemeData.dark().copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF6366F1),
-              surface: Color(0xFF111827),
-            ),
-            dialogBackgroundColor: const Color(0xFF0B0E1A),
-          ),
-          child: child!,
-        );
-      },
     );
 
     if (picked != null) {
@@ -191,23 +161,21 @@ class _TransactionListState extends State<TransactionList> {
         customRange = picked;
         activeFilter = DateFilter.custom;
       });
+      widget.onDateChange?.call(DateFilter.custom);
     }
   }
 
-  // ---------------- TRANSACTION TILE ----------------
-  Widget _transactionTile({
-    required String title,
-    required String paidBy,
-    required int amount,
-    required bool isIncome,
-  }) {
+  // ---------------- TILE ----------------
+  Widget _transactionTile(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data();
+    final isIncome = data['type'] == 'income';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.06),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
       ),
       child: Row(
         children: [
@@ -224,30 +192,27 @@ class _TransactionListState extends State<TransactionList> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  data['title'],
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 FutureBuilder<String>(
-                  future: UserService.getUserName(paidBy),
-                  builder: (context, snapshot) {
-                    final name = snapshot.data ?? '...';
-                    return Text(
-                      'Added by $name',
-                      style: const TextStyle(
-                        color: Colors.white60,
-                        fontSize: 11,
-                      ),
-                    );
-                  },
+                  future: UserService.getUserName(data['paidBy']),
+                  builder: (_, snap) => Text(
+                    'Added by ${snap.data ?? '...'}',
+                    style: const TextStyle(
+                      color: Colors.white60,
+                      fontSize: 11,
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
           Text(
-            '${isIncome ? '+' : '-'}₹$amount',
+            '${isIncome ? '+' : '-'}₹${(data['amount'] as num).toInt()}',
             style: TextStyle(
               color:
                   isIncome ? Colors.greenAccent : Colors.redAccent,
@@ -259,7 +224,6 @@ class _TransactionListState extends State<TransactionList> {
     );
   }
 
-  // ---------------- LABEL HELPER ----------------
   String _labelForFilter(DateFilter filter) {
     switch (filter) {
       case DateFilter.today:
