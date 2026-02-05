@@ -4,12 +4,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../data/demo_entries.dart';
 import '../../widgets/reports/six_month_bar_chart.dart';
 import '../../models/report_range.dart';
-
 import '../../services/expense_service.dart';
 import '../../constants/active_partner.dart';
 
 enum DateChip { today, thisMonth, lastMonth, custom }
-enum ChartMode { sixMonths, singleMonth }
+enum ChartMode { sixMonths }
+enum CustomChartRange { today, twoDays, sevenDays, fifteenDays, month, custom }
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -19,32 +19,31 @@ class ReportsScreen extends StatefulWidget {
 }
 
 class _ReportsScreenState extends State<ReportsScreen> {
+  // -------- SUMMARY FILTER
   DateTimeRange? selectedRange;
   DateChip activeDateChip = DateChip.thisMonth;
 
+  // -------- CHART FILTER
   ChartMode chartMode = ChartMode.sixMonths;
-  int selectedMonth = DateTime.now().month;
+  CustomChartRange activeCustomChartRange = CustomChartRange.month;
+  DateTimeRange? customChartRange;
 
   String formatCurrency(double v) => '₹${v.toStringAsFixed(0)}';
 
-  // ---------------- DATE RANGE LOGIC ----------------
-
+  // ---------------- SUMMARY RANGE ----------------
   DateTimeRange _rangeForChip(DateChip chip) {
     final now = DateTime.now();
-
     switch (chip) {
       case DateChip.today:
         return DateTimeRange(
           start: DateTime(now.year, now.month, now.day),
           end: DateTime(now.year, now.month, now.day, 23, 59, 59),
         );
-
       case DateChip.lastMonth:
         return DateTimeRange(
           start: DateTime(now.year, now.month - 1, 1),
           end: DateTime(now.year, now.month, 0),
         );
-
       default:
         return DateTimeRange(
           start: DateTime(now.year, now.month, 1),
@@ -53,15 +52,47 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
   }
 
-  // ---------------- Firestore → DemoEntry ----------------
+  // ---------------- CHART RANGE ----------------
+  DateTimeRange _rangeForCustomChart(CustomChartRange r) {
+    final now = DateTime.now();
+    switch (r) {
+      case CustomChartRange.today:
+        return DateTimeRange(
+          start: DateTime(now.year, now.month, now.day),
+          end: now,
+        );
+      case CustomChartRange.twoDays:
+        return DateTimeRange(
+          start: now.subtract(const Duration(days: 2)),
+          end: now,
+        );
+      case CustomChartRange.sevenDays:
+        return DateTimeRange(
+          start: now.subtract(const Duration(days: 7)),
+          end: now,
+        );
+      case CustomChartRange.fifteenDays:
+        return DateTimeRange(
+          start: now.subtract(const Duration(days: 15)),
+          end: now,
+        );
+      case CustomChartRange.month:
+        return DateTimeRange(
+          start: DateTime(now.year, now.month, 1),
+          end: DateTime(now.year, now.month + 1, 0),
+        );
+      case CustomChartRange.custom:
+        return customChartRange!;
+    }
+  }
 
+  // ---------------- FIRESTORE ----------------
   List<DemoEntry> _fromFirestore(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
   ) {
     return docs.map((doc) {
       final data = doc.data();
       final ts = data['createdAt'] as Timestamp?;
-
       return DemoEntry(
         id: doc.id,
         amount: (data['amount'] as num).toDouble(),
@@ -83,7 +114,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
       list.where((e) => e.type == type).fold(0.0, (s, e) => s + e.amount);
 
   // ---------------- UI ----------------
-
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -92,48 +122,60 @@ class _ReportsScreenState extends State<ReportsScreen> {
         if (!snapshot.hasData) return const SizedBox();
 
         final docs = snapshot.data!.docs;
-        final now = DateTime.now();
 
-        final summaryRange =
-            activeDateChip == DateChip.custom && selectedRange != null
-                ? selectedRange!
-                : _rangeForChip(activeDateChip);
+        final DateTimeRange summaryRange =
+    activeDateChip == DateChip.custom && selectedRange != null
+        ? DateTimeRange(
+            start: DateTime(
+              selectedRange!.start.year,
+              selectedRange!.start.month,
+              selectedRange!.start.day,
+            ),
+            end: DateTime(
+              selectedRange!.end.year,
+              selectedRange!.end.month,
+              selectedRange!.end.day,
+              23,
+              59,
+              59,
+            ),
+          )
+        : _rangeForChip(activeDateChip);
 
-        final summaryDocs = docs.where((doc) {
-          final ts = doc['createdAt'] as Timestamp?;
-          if (ts == null) return false;
+        final DateTimeRange chartRange =
+    activeCustomChartRange == CustomChartRange.custom &&
+            customChartRange != null
+        ? DateTimeRange(
+            start: DateTime(
+              customChartRange!.start.year,
+              customChartRange!.start.month,
+              customChartRange!.start.day,
+            ),
+            end: DateTime(
+              customChartRange!.end.year,
+              customChartRange!.end.month,
+              customChartRange!.end.day,
+              23,
+              59,
+              59,
+            ),
+          )
+        : _rangeForCustomChart(activeCustomChartRange);
 
-          final d = ts.toDate();
 
-          final dayOnly = DateTime(d.year, d.month, d.day);
-          final startOnly = DateTime(
-            summaryRange.start.year,
-            summaryRange.start.month,
-            summaryRange.start.day,
-          );
-          final endOnly = DateTime(
-            summaryRange.end.year,
-            summaryRange.end.month,
-            summaryRange.end.day,
-          );
+        final summaryEntries = _fromFirestore(docs.where((d) {
+          final t = (d['createdAt'] as Timestamp?)?.toDate();
+          return t != null &&
+              !t.isBefore(summaryRange.start) &&
+              !t.isAfter(summaryRange.end);
+        }).toList());
 
-          return !dayOnly.isBefore(startOnly) &&
-              !dayOnly.isAfter(endOnly);
-        }).toList();
-
-        final chartDocs = chartMode == ChartMode.singleMonth
-            ? docs.where((doc) {
-                final ts = doc['createdAt'] as Timestamp?;
-                if (ts == null) return false;
-
-                final date = ts.toDate();
-                return date.month == selectedMonth &&
-                    date.year == now.year;
-              }).toList()
-            : docs;
-
-        final summaryEntries = _fromFirestore(summaryDocs);
-        final chartEntries = _fromFirestore(chartDocs);
+        final chartEntries = _fromFirestore(docs.where((d) {
+          final t = (d['createdAt'] as Timestamp?)?.toDate();
+          return t != null &&
+              !t.isBefore(chartRange.start) &&
+              !t.isAfter(chartRange.end);
+        }).toList());
 
         final income = _sum(summaryEntries, EntryType.income);
         final expense = _sum(summaryEntries, EntryType.expense);
@@ -152,31 +194,22 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   color: Colors.white,
                 ),
               ),
-
               const SizedBox(height: 16),
               _dateChips(context),
               const SizedBox(height: 16),
-
               _summaryCard(
                 income,
                 expense,
                 income - expense,
                 summaryEntries.length,
               ),
-
               const SizedBox(height: 24),
               _chartChips(context),
               const SizedBox(height: 16),
-
               SixMonthBarChart(
                 entries: chartEntries,
-                range: chartMode == ChartMode.sixMonths
-                    ? ReportRange.sixMonths
-                    : ReportRange.thisMonth,
-                selectedMonth:
-                    chartMode == ChartMode.singleMonth ? selectedMonth : null,
+                range: ReportRange.sixMonths,
               ),
-
               const SizedBox(height: 24),
               _topSpendingSection(summaryEntries),
               const SizedBox(height: 120),
@@ -187,6 +220,175 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
+  // ---------------- CHART CHIPS ----------------
+  Widget _chartChips(BuildContext context) {
+    return Wrap(
+      spacing: 10,
+      children: [
+        _darkChip(label: '6 Months', active: true, onTap: () {}),
+        _darkChip(
+          label: _customChartRangeLabel(activeCustomChartRange),
+          active: false,
+          showArrow: true,
+          onTap: () async {
+            final picked = await showModalBottomSheet<CustomChartRange>(
+              context: context,
+              backgroundColor: const Color(0xFF111827),
+              builder: (_) => _customChartRangePicker(),
+            );
+            if (picked == null) return;
+
+            if (picked == CustomChartRange.custom) {
+              final range = await showDateRangePicker(
+                context: context,
+                firstDate: DateTime(2020),
+                lastDate: DateTime.now(),
+                initialEntryMode: DatePickerEntryMode.calendarOnly,
+                builder: (_, child) => Theme(
+                  data: ThemeData.dark().copyWith(
+                    colorScheme: const ColorScheme.dark(
+                      primary: Color(0xFF6366F1),
+                    ),
+                  ),
+                  child: child!,
+                ),
+              );
+              if (range == null) return;
+              customChartRange = range;
+            }
+
+            setState(() => activeCustomChartRange = picked);
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _customChartRangePicker() {
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      children: CustomChartRange.values.map((r) {
+        return ListTile(
+          title: Text(
+            _customChartRangeLabel(r),
+            style: const TextStyle(color: Colors.white),
+          ),
+          onTap: () => Navigator.pop(context, r),
+        );
+      }).toList(),
+    );
+  }
+
+  String _customChartRangeLabel(CustomChartRange r) {
+    switch (r) {
+      case CustomChartRange.today:
+        return 'Today';
+      case CustomChartRange.twoDays:
+        return '2 Days';
+      case CustomChartRange.sevenDays:
+        return '7 Days';
+      case CustomChartRange.fifteenDays:
+        return '15 Days';
+      case CustomChartRange.month:
+        return 'Month';
+      case CustomChartRange.custom:
+        return 'Custom';
+    }
+  }
+
+  // ---------------- COMMON UI ----------------
+  Widget _darkChip({
+    required String label,
+    required bool active,
+    required VoidCallback onTap,
+    bool showArrow = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: active
+              ? const Color(0xFF6366F1)
+              : const Color(0xFF1F2937),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: active ? Colors.white : Colors.white70,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+            if (showArrow) ...[
+              const SizedBox(width: 6),
+              const Icon(
+                Icons.keyboard_arrow_down,
+                size: 18,
+                color: Colors.white70,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------- DATE CHIPS ----------------
+  Widget _dateChips(BuildContext context) {
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: DateChip.values.map((c) {
+        return _darkChip(
+          label: _dateLabel(c),
+          active: activeDateChip == c,
+          onTap: () async {
+            if (c == DateChip.custom) {
+              final picked = await showDateRangePicker(
+                context: context,
+                firstDate: DateTime(2020),
+                lastDate: DateTime.now(),
+                builder: (_, child) =>
+                    Theme(data: ThemeData.dark(), child: child!),
+              );
+              if (picked == null) return;
+              setState(() {
+                activeDateChip = c;
+                selectedRange = picked;
+              });
+            } else {
+              setState(() {
+                activeDateChip = c;
+                selectedRange = null;
+              });
+            }
+          },
+        );
+      }).toList(),
+    );
+  }
+
+  String _dateLabel(DateChip c) {
+    switch (c) {
+      case DateChip.today:
+        return 'Today';
+      case DateChip.thisMonth:
+        return 'This Month';
+      case DateChip.lastMonth:
+        return 'Last Month';
+      case DateChip.custom:
+        return 'Custom';
+    }
+  }
+
+  // ---------------- SUMMARY UI ----------------
   Widget _summaryCard(
     double income,
     double expense,
@@ -216,68 +418,52 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  // 🔥 ONLY UPDATED PART (emoji added below)
- Widget _stat(String label, String value, Color color) {
-  String emoji;
-  switch (label) {
-    case 'Income':
-      emoji = '📈';
-      break;
-    case 'Expenses':
-      emoji = '📉';
-      break;
-    case 'Net Balance':
-      emoji = '📊';
-      break;
-    case 'Transactions':
-      emoji = '🧾';
-      break;
-    default:
-      emoji = '';
-  }
+  Widget _stat(String label, String value, Color color) {
+    const emojis = {
+      'Income': '📈',
+      'Expenses': '📉',
+      'Net Balance': '📊',
+      'Transactions': '🧾',
+    };
 
-  return Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: color.withOpacity(0.12),
-      borderRadius: BorderRadius.circular(18),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(color: Colors.white70)),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          style: TextStyle(
-            color: color, // unchanged
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const Spacer(),
-        Align(
-          alignment: Alignment.bottomRight,
-          child: Text(
-            emoji,
-            style: const TextStyle(
-              fontSize: 26,
-              color: Colors.black87, // ✅ darker & visible
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.white70)),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
             ),
           ),
-        ),
-      ],
-    ),
-  );
-}
-
+          const Spacer(),
+          Align(
+            alignment: Alignment.bottomRight,
+            child: Text(
+              emojis[label] ?? '',
+              style: const TextStyle(fontSize: 26),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _topSpendingSection(List<DemoEntry> entries) {
     final expenses =
         entries.where((e) => e.type == EntryType.expense).toList();
     if (expenses.isEmpty) return const SizedBox();
 
-    final Map<String, double> totals = {};
+    final totals = <String, double>{};
     for (final e in expenses) {
       totals[e.category] = (totals[e.category] ?? 0) + e.amount;
     }
@@ -337,145 +523,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
           }),
         ],
       ),
-    );
-  }
-
-  Widget _darkChip({
-    required String label,
-    required bool active,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: active
-              ? const Color(0xFF6366F1)
-              : const Color(0xFF1F2937),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: active ? Colors.white : Colors.white70,
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _dateChips(BuildContext context) {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: DateChip.values.map((c) {
-        return _darkChip(
-          label: _dateLabel(c),
-          active: activeDateChip == c,
-          onTap: () async {
-            if (c == DateChip.custom) {
-              final picked = await showDateRangePicker(
-                context: context,
-                firstDate: DateTime(2020),
-                lastDate: DateTime.now(),
-                builder: (_, child) =>
-                    Theme(data: ThemeData.dark(), child: child!),
-              );
-              if (picked != null) {
-                setState(() {
-                  activeDateChip = c;
-                  selectedRange = picked;
-                });
-              }
-            } else {
-              setState(() {
-                activeDateChip = c;
-                selectedRange = null;
-              });
-            }
-          },
-        );
-      }).toList(),
-    );
-  }
-
-  String _dateLabel(DateChip c) {
-    switch (c) {
-      case DateChip.today:
-        return 'Today';
-      case DateChip.thisMonth:
-        return 'This Month';
-      case DateChip.lastMonth:
-        return 'Last Month';
-      case DateChip.custom:
-        return 'Custom';
-    }
-  }
-
-  Widget _chartChips(BuildContext context) {
-    return Wrap(
-      spacing: 10,
-      children: [
-        _darkChip(
-          label: '6 Months',
-          active: chartMode == ChartMode.sixMonths,
-          onTap: () => setState(() => chartMode = ChartMode.sixMonths),
-        ),
-        _darkChip(
-          label: 'Pick Month',
-          active: chartMode == ChartMode.singleMonth,
-          onTap: () async {
-            final picked = await showModalBottomSheet<int>(
-              context: context,
-              backgroundColor: const Color(0xFF111827),
-              builder: (_) => _monthPicker(),
-            );
-            if (picked != null) {
-              setState(() {
-                chartMode = ChartMode.singleMonth;
-                selectedMonth = picked;
-              });
-            }
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _monthPicker() {
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate:
-          const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-      ),
-      itemCount: 12,
-      itemBuilder: (_, i) {
-        return GestureDetector(
-          onTap: () => Navigator.pop(context, i + 1),
-          child: Container(
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: const Color(0xFF1F2937),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Text(
-              const [
-                'Jan','Feb','Mar','Apr','May','Jun',
-                'Jul','Aug','Sep','Oct','Nov','Dec'
-              ][i],
-              style: const TextStyle(color: Colors.white),
-            ),
-          ),
-        );
-      },
     );
   }
 
