@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import '../../services/user_service.dart';
 
-// ---------------- SINGLE SOURCE DATE FILTER ENUM ----------------
+// ---------------- DATE FILTER ENUM ----------------
 enum DateFilter {
   today,
   last2Days,
@@ -14,8 +15,6 @@ enum DateFilter {
 
 class TransactionList extends StatefulWidget {
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> expenses;
-
-  // 🔥 Notify parent when date filter changes
   final ValueChanged<DateFilter>? onDateChange;
 
   const TransactionList({
@@ -32,7 +31,6 @@ class _TransactionListState extends State<TransactionList> {
   DateFilter activeFilter = DateFilter.last7Days;
   DateTimeRange? customRange;
 
-  // ---------------- DATE MATCH ----------------
   bool _matchesDate(DateTime date) {
     final now = DateTime.now();
     DateTime start;
@@ -147,7 +145,6 @@ class _TransactionListState extends State<TransactionList> {
     );
   }
 
-  // ---------------- CUSTOM RANGE ----------------
   Future<void> _pickCustomRange(BuildContext context) async {
     final picked = await showDateRangePicker(
       context: context,
@@ -165,10 +162,16 @@ class _TransactionListState extends State<TransactionList> {
     }
   }
 
-  // ---------------- TILE ----------------
+  // ---------------- TRANSACTION TILE (ONLY CHANGE IS HERE) ----------------
   Widget _transactionTile(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
     final isIncome = data['type'] == 'income';
+
+    final DateTime createdAt =
+        (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+
+    final String formattedDate =
+        DateFormat('dd MMM yyyy • hh:mm a').format(createdAt);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -187,10 +190,13 @@ class _TransactionListState extends State<TransactionList> {
             ),
           ),
           const SizedBox(width: 12),
+
+          // ---- TEXT BLOCK ----
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Transaction name
                 Text(
                   data['title'],
                   style: const TextStyle(
@@ -198,6 +204,10 @@ class _TransactionListState extends State<TransactionList> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+
+                const SizedBox(height: 2),
+
+                // Added by
                 FutureBuilder<String>(
                   future: UserService.getUserName(data['paidBy']),
                   builder: (_, snap) => Text(
@@ -208,9 +218,22 @@ class _TransactionListState extends State<TransactionList> {
                     ),
                   ),
                 ),
+
+                const SizedBox(height: 2),
+
+                // ✅ DATE + TIME (NEW, EXACTLY AS YOU WANT)
+                Text(
+                  formattedDate,
+                  style: const TextStyle(
+                    color: Colors.white38,
+                    fontSize: 11,
+                  ),
+                ),
               ],
             ),
           ),
+
+          // Amount
           Text(
             '${isIncome ? '+' : '-'}₹${(data['amount'] as num).toInt()}',
             style: TextStyle(
