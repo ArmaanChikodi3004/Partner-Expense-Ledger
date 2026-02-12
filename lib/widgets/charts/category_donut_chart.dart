@@ -63,7 +63,8 @@ class CategoryDonutChart extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 14),
                 child: _LegendItem(
                   color: _colorForCategory(entry.key),
-                  label: '${_emojiForCategory(entry.key)} ${entry.key}',
+             label: '${_emojiForCategory(entry.key)} ${_displayName(entry.key)}',
+
                   value: '${percent.toStringAsFixed(1)}%',
                 ),
               );
@@ -101,6 +102,24 @@ class CategoryDonutChart extends StatelessWidget {
     }
   }
 }
+
+String _displayName(String category) {
+  switch (category) {
+    case 'rent':
+      return 'Rent';
+    case 'food':
+      return 'Food';
+    case 'travel':
+      return 'Travel';
+    case 'shopping':
+      return 'Shopping';
+    case 'other_expense':
+      return 'Others';
+    default:
+      return category;
+  }
+}
+
 
 class _LegendItem extends StatelessWidget {
   final Color color;

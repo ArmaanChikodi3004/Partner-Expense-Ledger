@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../data/demo_categories.dart';
 import '../../constants/active_partner.dart';
-
-// 🔹 FIREBASE
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/expense_service.dart';
 
 class AddEntrySheet extends StatefulWidget {
@@ -20,6 +18,8 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
 
   final TextEditingController amountController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
+
+  DateTime selectedDate = DateTime.now(); // ✅ NEW
 
   bool isSaving = false;
 
@@ -40,83 +40,94 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
     final categories =
         demoCategories.where((c) => c.type == selectedType).toList();
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF111827),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-      child: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF111827),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _dragHandle(),
+              const SizedBox(height: 20),
+              _header(context),
+              const SizedBox(height: 24),
+
+              _typeToggle(),
+              const SizedBox(height: 24),
+
+              _datePickerChip(), // ✅ NEW DATE PICKER
+              const SizedBox(height: 24),
+
+              _sectionLabel('Amount'),
+              _amountField(),
+              const SizedBox(height: 24),
+
+              _sectionLabel('Category'),
+              const SizedBox(height: 12),
+              _categoryGrid(categories),
+              const SizedBox(height: 24),
+
+              _sectionLabel('Description (optional)'),
+              _descriptionField(),
+              const SizedBox(height: 32),
+
+              _submitButton(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ───────── DATE PICKER CHIP ─────────
+
+  Widget _datePickerChip() {
+    return GestureDetector(
+      onTap: _pickDate,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white10,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _dragHandle(),
-            const SizedBox(height: 20),
-            _header(context),
-            const SizedBox(height: 24),
-
-            _typeToggle(),
-            const SizedBox(height: 24),
-
-            _sectionLabel('Amount'),
-            _amountField(),
-            const SizedBox(height: 24),
-
-            _sectionLabel('Category'),
-            const SizedBox(height: 12),
-            _categoryGrid(categories),
-            const SizedBox(height: 24),
-
-            _sectionLabel('Description (optional)'),
-            _descriptionField(),
-            const SizedBox(height: 32),
-
-            _submitButton(),
+            const Icon(Icons.calendar_today, size: 16, color: Colors.white70),
+            const SizedBox(width: 8),
+            Text(
+              "${selectedDate.day}/${selectedDate.month}/${selectedDate.year}",
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  // ───────── UI HELPERS ─────────
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
 
-  Widget _dragHandle() => Center(
-        child: Container(
-          width: 40,
-          height: 4,
-          decoration: BoxDecoration(
-            color: Colors.white24,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-      );
-
-  Widget _header(BuildContext context) => Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            'Add Entry',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: Colors.white12,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(Icons.close, color: Colors.white70, size: 18),
-            ),
-          ),
-        ],
-      );
+    if (picked != null) {
+      setState(() => selectedDate = picked);
+    }
+  }
 
   // ───────── TYPE TOGGLE ─────────
 
@@ -255,8 +266,6 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
     );
   }
 
-  // ───────── DESCRIPTION ─────────
-
   Widget _descriptionField() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -276,8 +285,6 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
       ),
     );
   }
-
-  // ───────── SUBMIT ─────────
 
   Widget _submitButton() {
     final enabled =
@@ -314,40 +321,94 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
     );
   }
 
-  Future<void> _handleSubmit() async {
-    try {
-      setState(() => isSaving = true);
+ Future<void> _handleSubmit() async {
+  try {
+    setState(() => isSaving = true);
 
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
-      await ExpenseService.addExpense(
-        partnerId: activePartnerId,
-        title: descriptionController.text.trim().isEmpty
-            ? selectedCategory!
-            : descriptionController.text.trim(),
-        amount: double.parse(amountController.text.trim()),
-        type: selectedType == EntryType.expense ? 'expense' : 'income',
-        category: selectedCategory!,
-        paidBy: user.uid,
+    // ✅ Get category object
+    final category = demoCategories.firstWhere(
+      (c) => c.id == selectedCategory,
+    );
+
+    // ✅ If description empty → use category name (Food, Travel, etc.)
+    final String finalTitle =
+        descriptionController.text.trim().isEmpty
+            ? category.name
+            : descriptionController.text.trim();
+
+    await ExpenseService.addExpense(
+      partnerId: activePartnerId,
+      title: finalTitle, // ✅ FIXED HERE
+      amount: double.parse(amountController.text.trim()),
+      type: selectedType == EntryType.expense ? 'expense' : 'income',
+      category: selectedCategory!,
+      paidBy: user.uid,
+      createdAt: DateTime(
+        selectedDate.year,
+        selectedDate.month,
+        selectedDate.day,
+        DateTime.now().hour,
+        DateTime.now().minute,
+        DateTime.now().second,
+      ),
+    );
+
+    if (mounted) {
+      Navigator.pop(context);
+    }
+  } finally {
+    if (mounted) setState(() => isSaving = false);
+  }
+}
+
+
+  Widget _dragHandle() => Center(
+        child: Container(
+          width: 40,
+          height: 4,
+          decoration: BoxDecoration(
+            color: Colors.white24,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
       );
 
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Entry added successfully')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => isSaving = false);
-    }
-  }
+  Widget _header(BuildContext context) => Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text(
+            'Add Entry',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: Colors.white12,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(Icons.close,
+                  color: Colors.white70, size: 18),
+            ),
+          ),
+        ],
+      );
 
   Widget _sectionLabel(String text) => Padding(
         padding: const EdgeInsets.only(bottom: 6),
         child: Text(
           text,
-          style: const TextStyle(color: Colors.white70, fontSize: 13),
+          style:
+              const TextStyle(color: Colors.white70, fontSize: 13),
         ),
       );
 }

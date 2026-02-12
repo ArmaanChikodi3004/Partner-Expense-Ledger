@@ -14,6 +14,16 @@ import '../../services/expense_service.dart';
 import '../../constants/active_partner.dart';
 import '../../services/user_service.dart';
 
+// ---------------- DATE FILTER ENUM ----------------
+enum DateFilter {
+  today,
+  last2Days,
+  last7Days,
+  last15Days,
+  lastMonth,
+  custom,
+}
+
 enum HomeTab { home, reports, settings }
 
 class HomeScreen extends StatefulWidget {
@@ -25,35 +35,49 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   HomeTab activeTab = HomeTab.home;
+
   final Set<String> selectedUserUids = {'ALL'};
   DateFilter activeDateFilter = DateFilter.last7Days;
+  DateTimeRange? customRange;
 
+  // ---------------- DATE MATCH ----------------
   bool _matchesDate(DateTime date) {
-    final now = DateTime.now();
-    DateTime start;
+  final now = DateTime.now();
 
-    switch (activeDateFilter) {
-      case DateFilter.today:
-        start = DateTime(now.year, now.month, now.day);
-        break;
-      case DateFilter.last2Days:
-        start = now.subtract(const Duration(days: 2));
-        break;
-      case DateFilter.last7Days:
-        start = now.subtract(const Duration(days: 7));
-        break;
-      case DateFilter.last15Days:
-        start = now.subtract(const Duration(days: 15));
-        break;
-      case DateFilter.lastMonth:
-        start = DateTime(now.year, now.month - 1, now.day);
-        break;
-      case DateFilter.custom:
-        return true;
-    }
+  DateTime start;
+  DateTime end = now;
 
-    return date.isAfter(start);
+  switch (activeDateFilter) {
+    case DateFilter.today:
+      start = DateTime(now.year, now.month, now.day);
+      end = DateTime(now.year, now.month, now.day, 23, 59, 59);
+      break;
+
+    case DateFilter.last2Days:
+      start = now.subtract(const Duration(days: 2));
+      break;
+
+    case DateFilter.last7Days:
+      start = now.subtract(const Duration(days: 7));
+      break;
+
+    case DateFilter.last15Days:
+      start = now.subtract(const Duration(days: 15));
+      break;
+
+    case DateFilter.lastMonth:
+      start = DateTime(now.year, now.month - 1, now.day);
+      break;
+
+    case DateFilter.custom:
+      return true;
   }
+
+  return !date.isBefore(start) && !date.isAfter(end);
+}
+
+
+  
 
   @override
   Widget build(BuildContext context) {
@@ -103,20 +127,18 @@ class _HomeScreenState extends State<HomeScreen> {
               return _matchesDate(ts.toDate());
             }).toList();
 
-           // ✅ BALANCE MUST BE FULL FIREBASE DATA (NO DATE FILTER)
-double income = 0;
-double expense = 0;
+            // -------- BALANCE SYNCED WITH DATE + USER --------
+            double income = 0;
+            double expense = 0;
 
-for (final d in userFiltered) {
-  final amt = (d['amount'] as num).toDouble();
-  if (d['type'] == 'income') {
-    income += amt;
-  } else if (d['type'] == 'expense') {
-    expense += amt;
-  }
-}
-
-
+            for (final d in dateFiltered) {
+              final amt = (d['amount'] as num).toDouble();
+              if (d['type'] == 'income') {
+                income += amt;
+              } else if (d['type'] == 'expense') {
+                expense += amt;
+              }
+            }
 
             final userUids =
                 all.map((d) => d['paidBy'] as String).toSet().toList();
@@ -125,20 +147,41 @@ for (final d in userFiltered) {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+
+                  // -------- DATE DROPDOWN --------
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        "Duration",
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                      _dateFilterDropdown(),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
                   BalanceCard(
                     balance: (income - expense).toInt(),
                     income: income.toInt(),
                     expense: expense.toInt(),
                   ),
+
                   const SizedBox(height: 20),
+
                   _userChips(userUids),
+
                   const SizedBox(height: 12),
+
                   CategoryChartCard(expenses: dateFiltered),
+
                   const SizedBox(height: 20),
+
                   TransactionList(
                     expenses: dateFiltered,
-                    onDateChange: (f) => setState(() => activeDateFilter = f),
                   ),
+
                   const SizedBox(height: 120),
                 ],
               ),
@@ -148,13 +191,86 @@ for (final d in userFiltered) {
 
       case HomeTab.reports:
         return const ReportsScreen();
+
       case HomeTab.settings:
         return const SettingsScreen();
     }
   }
 
+  // ---------------- DATE DROPDOWN ----------------
+  Widget _dateFilterDropdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF6366F1),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<DateFilter>(
+          dropdownColor: const Color(0xFF111827),
+          value: activeDateFilter,
+          icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
+          style: const TextStyle(color: Colors.white),
+          onChanged: (DateFilter? value) async {
+            if (value == null) return;
+
+            if (value == DateFilter.custom) {
+              final picked = await showDateRangePicker(
+                context: context,
+                firstDate: DateTime(2020),
+                lastDate: DateTime.now(),
+                initialDateRange: customRange,
+                builder: (_, child) =>
+                    Theme(data: ThemeData.dark(), child: child!),
+              );
+
+              if (picked == null) return;
+
+              setState(() {
+                customRange = picked;
+                activeDateFilter = DateFilter.custom;
+              });
+            } else {
+              setState(() {
+                activeDateFilter = value;
+              });
+            }
+          },
+          items: const [
+            DropdownMenuItem(
+              value: DateFilter.today,
+              child: Text("Today"),
+            ),
+            DropdownMenuItem(
+              value: DateFilter.last2Days,
+              child: Text("2 Days"),
+            ),
+            DropdownMenuItem(
+              value: DateFilter.last7Days,
+              child: Text("7 Days"),
+            ),
+            DropdownMenuItem(
+              value: DateFilter.last15Days,
+              child: Text("15 Days"),
+            ),
+            DropdownMenuItem(
+              value: DateFilter.lastMonth,
+              child: Text("Month"),
+            ),
+            DropdownMenuItem(
+              value: DateFilter.custom,
+              child: Text("Custom Range"),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------- USER CHIPS ----------------
   Widget _userChips(List<String> uids) {
     final all = ['ALL', ...uids];
+
     return SizedBox(
       height: 40,
       child: ListView.separated(
@@ -175,6 +291,7 @@ for (final d in userFiltered) {
                   active
                       ? selectedUserUids.remove(uid)
                       : selectedUserUids.add(uid);
+
                   if (selectedUserUids.isEmpty) {
                     selectedUserUids.add('ALL');
                   }
@@ -191,17 +308,19 @@ for (final d in userFiltered) {
               ),
               alignment: Alignment.center,
               child: uid == 'ALL'
-                  ? const Text('All',
+                  ? const Text(
+                      'All',
                       style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600))
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    )
                   : FutureBuilder<String>(
                       future: UserService.getUserName(uid),
                       builder: (_, s) => Text(
                         s.data ?? '...',
                         style: TextStyle(
-                          color:
-                              active ? Colors.white : Colors.white70,
+                          color: active ? Colors.white : Colors.white70,
                           fontWeight: FontWeight.w600,
                         ),
                       ),

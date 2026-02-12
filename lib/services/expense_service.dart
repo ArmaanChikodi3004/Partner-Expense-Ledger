@@ -1,58 +1,62 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class ExpenseService {
-  static final _db = FirebaseFirestore.instance;
-  static final _auth = FirebaseAuth.instance;
+  static final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // ================= ADD EXPENSE / INCOME =================
+  // ✅ ADD EXPENSE / INCOME TO PARTNER SUBCOLLECTION
   static Future<String> addExpense({
     required String partnerId,
     required String title,
     required double amount,
-    required String type, // "expense" | "income"
+    required String type,
     required String category,
     required String paidBy,
+    required DateTime createdAt,
   }) async {
-    final user = _auth.currentUser;
-    if (user == null) {
-      throw Exception('User not logged in');
-    }
+    final doc = await _db
+        .collection('partners')
+        .doc(partnerId)
+        .collection('expenses')
+        .add({
+      'title': title,
+      'amount': amount,
+      'type': type,
+      'category': category,
+      'paidBy': paidBy,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'isDeleted': false,
+    });
 
-    final expenseJson = {
-      "partnerId": partnerId,
-      "title": title,
-      "amount": amount,
-      "type": type, // expense | income
-      "category": category,
-      "paidBy": paidBy,
-      "createdBy": user.uid,
-      "createdAt": FieldValue.serverTimestamp(),
-      "updatedAt": FieldValue.serverTimestamp(),
-      "isDeleted": false,
-    };
-
-    final docRef = await _db.collection('expenses').add(expenseJson);
-    return docRef.id;
+    return doc.id;
   }
 
-  // ================= REALTIME GET EXPENSES =================
+  // ✅ READ EXPENSES FROM SAME SUBCOLLECTION
   static Stream<QuerySnapshot<Map<String, dynamic>>> getExpenses({
     required String partnerId,
   }) {
     return _db
+        .collection('partners')
+        .doc(partnerId)
         .collection('expenses')
-        .where('partnerId', isEqualTo: partnerId)
         .where('isDeleted', isEqualTo: false)
         .orderBy('createdAt', descending: true)
         .snapshots();
   }
 
-  // ================= SOFT DELETE =================
-  static Future<void> deleteExpense(String expenseId) async {
-    await _db.collection('expenses').doc(expenseId).update({
-      "isDeleted": true,
-      "updatedAt": FieldValue.serverTimestamp(),
+  // ✅ DELETE FROM SAME SUBCOLLECTION
+  static Future<void> deleteExpense({
+    required String partnerId,
+    required String expenseId,
+  }) async {
+    await _db
+        .collection('partners')
+        .doc(partnerId)
+        .collection('expenses')
+        .doc(expenseId)
+        .update({
+      'isDeleted': true,
+      'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 }

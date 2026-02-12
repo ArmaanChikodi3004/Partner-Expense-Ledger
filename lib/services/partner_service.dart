@@ -6,29 +6,31 @@ class PartnerService {
     required String name,
     required List<String> memberUids,
   }) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      throw FirebaseAuthException(
+        code: 'user-not-logged-in',
+        message: 'User must be logged in to create a partner.',
+      );
+    }
+
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw Exception('User not logged in');
-      }
-
-      final uid = user.uid;
-
-      final partnerJson = {
-        "name": name,
-        "members": memberUids,
-        "createdBy": uid,
-        "createdAt": FieldValue.serverTimestamp(),
-        "isActive": true,
+      final partnerData = {
+        'name': name.trim(),
+        'members': memberUids,
+        'createdBy': user.uid,
+        'createdAt': FieldValue.serverTimestamp(),
+        'isActive': true,
       };
 
       final docRef = await FirebaseFirestore.instance
           .collection('partners')
-          .add(partnerJson);
+          .add(partnerData);
 
-      return docRef.id; // ✅ confirms success
+      return docRef.id; // Successfully created partner
     } catch (e) {
-      rethrow; // 🔥 propagate error to UI
+      throw Exception('Failed to create partner: $e');
     }
   }
 }

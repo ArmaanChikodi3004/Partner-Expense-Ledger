@@ -1,63 +1,96 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import '../../data/demo_entries.dart';
-import '../../models/report_range.dart';
 
-class SixMonthBarChart extends StatelessWidget {
+class SixMonthBarChart extends StatefulWidget {
   final List<DemoEntry> entries;
-  final ReportRange range;
-  final int? selectedMonth;
 
   const SixMonthBarChart({
     super.key,
     required this.entries,
-    required this.range,
-    this.selectedMonth,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final data = _buildChartData();
+  State<SixMonthBarChart> createState() => _SixMonthBarChartState();
+}
 
-    final maxY = data
-            .map((e) => e.income > e.expense ? e.income : e.expense)
-            .fold<double>(0, (a, b) => a > b ? a : b) *
-        1.2;
+class _SixMonthBarChartState extends State<SixMonthBarChart> {
+  late int selectedYear;
+
+  @override
+  void initState() {
+    super.initState();
+    selectedYear = DateTime.now().year;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final data = _buildYearData(selectedYear);
 
     return _glassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            _title(),
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-            ),
+          // 🔹 Header + Year Picker
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                "Year Overview",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+              DropdownButton<int>(
+                value: selectedYear,
+                dropdownColor: const Color(0xFF111827),
+                style: const TextStyle(color: Colors.white),
+                underline: const SizedBox(),
+                onChanged: (year) {
+                  if (year == null) return;
+                  setState(() => selectedYear = year);
+                },
+                items: List.generate(5, (i) {
+                  final year = DateTime.now().year - i;
+                  return DropdownMenuItem(
+                    value: year,
+                    child: Text("$year"),
+                  );
+                }),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
 
+          const SizedBox(height: 20),
+
+          // 🔹 Horizontal Scroll Chart
           SizedBox(
             height: 260,
-            child: BarChart(
-              BarChartData(
-                minY: 0,
-                maxY: maxY == 0 ? 100 : maxY,
-                barGroups: _barGroups(data),
-                titlesData: _titles(data),
-                gridData: FlGridData(show: false),
-                borderData: FlBorderData(show: false),
-                barTouchData: _tooltip(),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: 900,
+                child: BarChart(
+                  BarChartData(
+                    minY: 0,
+                    barGroups: _barGroups(data),
+                    titlesData: _titles(data),
+                    gridData: FlGridData(show: false),
+                    borderData: FlBorderData(show: false),
+                    barTouchData: _tooltip(),
+                  ),
+                ),
               ),
             ),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
 
-          Row(
+          const Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
+            children: [
               _LegendDot(color: Color(0xFF6366F1), label: 'Income'),
               SizedBox(width: 20),
               _LegendDot(color: Color(0xFFEC4899), label: 'Expense'),
@@ -70,77 +103,36 @@ class SixMonthBarChart extends StatelessWidget {
 
   // ---------------- DATA ----------------
 
-  List<_ChartUnit> _buildChartData() {
-    final now = DateTime.now();
+  List<_ChartUnit> _buildYearData(int year) {
+    return List.generate(12, (i) {
+      final month = i + 1;
 
-    // 🔹 6 MONTH VIEW
-    if (range == ReportRange.sixMonths) {
-      return List.generate(6, (i) {
-        final date = DateTime(now.year, now.month - (5 - i), 1);
-        return _fromEntries(
-          label: _monthName(date.month),
-          entries: entries.where(
-            (e) => e.date.month == date.month && e.date.year == date.year,
-          ),
-        );
-      });
-    }
+      final monthEntries = widget.entries.where(
+        (e) => e.date.year == year && e.date.month == month,
+      );
 
-    // 🔹 SINGLE MONTH → WEEK-WISE (FIXED)
-    if (range == ReportRange.thisMonth && selectedMonth != null) {
-      final year = now.year;
-      final firstDay = DateTime(year, selectedMonth!, 1);
-      final lastDay = DateTime(year, selectedMonth! + 1, 0);
+      final income = monthEntries
+          .where((e) => e.type == EntryType.income)
+          .fold(0.0, (s, e) => s + e.amount);
 
-      final weeks = <_ChartUnit>[];
-      DateTime cursor = firstDay;
-      int weekIndex = 1;
+      final expense = monthEntries
+          .where((e) => e.type == EntryType.expense)
+          .fold(0.0, (s, e) => s + e.amount);
 
-      while (cursor.isBefore(lastDay) || cursor.isAtSameMomentAs(lastDay)) {
-        final weekStart = cursor;
-        final weekEnd = cursor.add(const Duration(days: 6));
-
-        weeks.add(
-          _fromEntries(
-            label: 'W$weekIndex',
-            entries: entries.where(
-              (e) =>
-                  !e.date.isBefore(weekStart) &&
-                  !e.date.isAfter(weekEnd),
-            ),
-          ),
-        );
-
-        cursor = cursor.add(const Duration(days: 7));
-        weekIndex++;
-      }
-
-      return weeks;
-    }
-
-    return [];
+      return _ChartUnit(
+        label: _monthName(month),
+        income: income,
+        expense: expense,
+      );
+    });
   }
 
-  _ChartUnit _fromEntries({
-    required String label,
-    required Iterable<DemoEntry> entries,
-  }) {
-    final income = entries
-        .where((e) => e.type == EntryType.income)
-        .fold(0.0, (s, e) => s + e.amount);
-
-    final expense = entries
-        .where((e) => e.type == EntryType.expense)
-        .fold(0.0, (s, e) => s + e.amount);
-
-    return _ChartUnit(label: label, income: income, expense: expense);
-  }
-
-  // ---------------- UI ----------------
+  // ---------------- BAR GROUPS ----------------
 
   List<BarChartGroupData> _barGroups(List<_ChartUnit> data) {
     return List.generate(data.length, (i) {
       final d = data[i];
+
       return BarChartGroupData(
         x: i,
         barsSpace: 6,
@@ -162,6 +154,8 @@ class SixMonthBarChart extends StatelessWidget {
     });
   }
 
+  // ---------------- TITLES ----------------
+
   FlTitlesData _titles(List<_ChartUnit> data) {
     return FlTitlesData(
       leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -170,17 +164,24 @@ class SixMonthBarChart extends StatelessWidget {
       bottomTitles: AxisTitles(
         sideTitles: SideTitles(
           showTitles: true,
-          getTitlesWidget: (v, _) => Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              data[v.toInt()].label,
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
-            ),
-          ),
+          getTitlesWidget: (value, _) {
+            return Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                data[value.toInt()].label,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
   }
+
+  // ---------------- TOOLTIP ----------------
 
   BarTouchData _tooltip() {
     return BarTouchData(
@@ -189,6 +190,7 @@ class SixMonthBarChart extends StatelessWidget {
         tooltipBgColor: const Color(0xFF111827),
         getTooltipItem: (_, __, rod, rodIndex) {
           final isIncome = rodIndex == 0;
+
           return BarTooltipItem(
             '${isIncome ? 'Income' : 'Expense'}\n₹${rod.toY.toStringAsFixed(0)}',
             TextStyle(
@@ -201,12 +203,6 @@ class SixMonthBarChart extends StatelessWidget {
         },
       ),
     );
-  }
-
-  String _title() {
-    return range == ReportRange.thisMonth
-        ? 'Monthly Overview'
-        : '6 Month Overview';
   }
 
   Widget _glassCard({required Widget child}) {
@@ -243,7 +239,10 @@ class _LegendDot extends StatelessWidget {
   final Color color;
   final String label;
 
-  const _LegendDot({required this.color, required this.label});
+  const _LegendDot({
+    required this.color,
+    required this.label,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -252,10 +251,15 @@ class _LegendDot extends StatelessWidget {
         Container(
           width: 10,
           height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          decoration:
+              BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 6),
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        Text(
+          label,
+          style:
+              const TextStyle(color: Colors.white70, fontSize: 12),
+        ),
       ],
     );
   }

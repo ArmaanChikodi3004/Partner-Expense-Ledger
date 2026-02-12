@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../data/demo_entries.dart';
+import '../../data/demo_categories.dart' hide EntryType;
 import '../../widgets/reports/six_month_bar_chart.dart';
 import '../../models/report_range.dart';
 import '../../services/expense_service.dart';
@@ -22,6 +23,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
   // -------- SUMMARY FILTER
   DateTimeRange? selectedRange;
   DateChip activeDateChip = DateChip.thisMonth;
+  int selectedYear = DateTime.now().year;
+
 
   // -------- CHART FILTER
   ChartMode chartMode = ChartMode.sixMonths;
@@ -181,88 +184,103 @@ class _ReportsScreenState extends State<ReportsScreen> {
         final expense = _sum(summaryEntries, EntryType.expense);
 
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          physics: const BouncingScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Reports',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 16),
-              _dateChips(context),
-              const SizedBox(height: 16),
-              _summaryCard(
-                income,
-                expense,
-                income - expense,
-                summaryEntries.length,
-              ),
-              const SizedBox(height: 24),
-              _chartChips(context),
-              const SizedBox(height: 16),
-              SixMonthBarChart(
-                entries: chartEntries,
-                range: ReportRange.sixMonths,
-              ),
-              const SizedBox(height: 24),
-              _topSpendingSection(summaryEntries),
-              const SizedBox(height: 120),
-            ],
-          ),
-        );
+  padding: const EdgeInsets.all(16),
+  physics: const BouncingScrollPhysics(),
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text(
+        'Reports',
+        style: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ),
+
+      const SizedBox(height: 16),
+
+      _dateChips(context),
+
+      const SizedBox(height: 16),
+
+      _summaryCard(
+        income,
+        expense,
+        income - expense,
+        summaryEntries.length,
+      ),
+
+      const SizedBox(height: 24),
+
+      // 🔹 TOP SPENDING MOVED UP
+      _topSpendingSection(summaryEntries),
+
+      const SizedBox(height: 24),
+
+      // 🔹 CHART CONTROLS
+      _chartChips(context),
+
+      const SizedBox(height: 16),
+
+      // 🔹 6 MONTH OVERVIEW MOVED BELOW
+      SixMonthBarChart(
+        entries: chartEntries,
+       
+      ),
+
+      const SizedBox(height: 120),
+    ],
+  ),
+);
+
       },
     );
   }
 
   // ---------------- CHART CHIPS ----------------
-  Widget _chartChips(BuildContext context) {
-    return Wrap(
-      spacing: 10,
-      children: [
-        _darkChip(label: '6 Months', active: true, onTap: () {}),
-        _darkChip(
-          label: _customChartRangeLabel(activeCustomChartRange),
-          active: false,
-          showArrow: true,
-          onTap: () async {
-            final picked = await showModalBottomSheet<CustomChartRange>(
+ Widget _chartChips(BuildContext context) {
+  return Wrap(
+    spacing: 10,
+    children: [
+      _darkChip(
+        label: _customChartRangeLabel(activeCustomChartRange),
+        active: false,
+        showArrow: true,
+        onTap: () async {
+          final picked = await showModalBottomSheet<CustomChartRange>(
+            context: context,
+            backgroundColor: const Color(0xFF111827),
+            builder: (_) => _customChartRangePicker(),
+          );
+          if (picked == null) return;
+
+          if (picked == CustomChartRange.custom) {
+            final range = await showDateRangePicker(
               context: context,
-              backgroundColor: const Color(0xFF111827),
-              builder: (_) => _customChartRangePicker(),
-            );
-            if (picked == null) return;
-
-            if (picked == CustomChartRange.custom) {
-              final range = await showDateRangePicker(
-                context: context,
-                firstDate: DateTime(2020),
-                lastDate: DateTime.now(),
-                initialEntryMode: DatePickerEntryMode.calendarOnly,
-                builder: (_, child) => Theme(
-                  data: ThemeData.dark().copyWith(
-                    colorScheme: const ColorScheme.dark(
-                      primary: Color(0xFF6366F1),
-                    ),
+              firstDate: DateTime(2020),
+              lastDate: DateTime.now(),
+              initialEntryMode: DatePickerEntryMode.calendarOnly,
+              builder: (_, child) => Theme(
+                data: ThemeData.dark().copyWith(
+                  colorScheme: const ColorScheme.dark(
+                    primary: Color(0xFF6366F1),
                   ),
-                  child: child!,
                 ),
-              );
-              if (range == null) return;
-              customChartRange = range;
-            }
+                child: child!,
+              ),
+            );
+            if (range == null) return;
+            customChartRange = range;
+          }
 
-            setState(() => activeCustomChartRange = picked);
-          },
-        ),
-      ],
-    );
-  }
+          setState(() => activeCustomChartRange = picked);
+        },
+      ),
+    ],
+  );
+}
+
 
   Widget _customChartRangePicker() {
     return ListView(
@@ -458,73 +476,84 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  Widget _topSpendingSection(List<DemoEntry> entries) {
-    final expenses =
-        entries.where((e) => e.type == EntryType.expense).toList();
-    if (expenses.isEmpty) return const SizedBox();
+ Widget _topSpendingSection(List<DemoEntry> entries) {
+  final expenses =
+      entries.where((e) => e.type == EntryType.expense).toList();
+  if (expenses.isEmpty) return const SizedBox();
 
-    final totals = <String, double>{};
-    for (final e in expenses) {
-      totals[e.category] = (totals[e.category] ?? 0) + e.amount;
-    }
+  final totals = <String, double>{};
 
-    final sorted = totals.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+  for (final e in expenses) {
+    totals[e.category] = (totals[e.category] ?? 0) + e.amount;
+  }
 
-    final max = sorted.first.value;
+  final sorted = totals.entries.toList()
+    ..sort((a, b) => b.value.compareTo(a.value));
 
-    return _glassCard(
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Top Spending Categories',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-            ),
+  final max = sorted.first.value;
+
+  return _glassCard(
+    Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Top Spending Categories',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
           ),
-          const SizedBox(height: 16),
-          ...sorted.take(5).map((e) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(e.key,
-                          style: const TextStyle(color: Colors.white)),
-                      Text(
-                        formatCurrency(e.value),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: LinearProgressIndicator(
-                      value: e.value / max,
-                      minHeight: 8,
-                      backgroundColor: Colors.white12,
-                      valueColor: const AlwaysStoppedAnimation(
-                        Color(0xFFEC4899),
+        ),
+        const SizedBox(height: 16),
+
+        ...sorted.take(5).map((e) {
+          // 🔥 Convert category ID to proper name
+          final category = demoCategories.firstWhere(
+            (c) => c.id == e.key,
+            orElse: () => demoCategories.first,
+          );
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      category.name, // ✅ SHOWS "Food" instead of "food"
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    Text(
+                      formatCurrency(e.value),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: e.value / max,
+                    minHeight: 8,
+                    backgroundColor: Colors.white12,
+                    valueColor: const AlwaysStoppedAnimation(
+                      Color(0xFFEC4899),
+                    ),
                   ),
-                ],
-              ),
-            );
-          }),
-        ],
-      ),
-    );
-  }
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    ),
+  );
+}
+
 
   Widget _glassCard(Widget child) {
     return Container(

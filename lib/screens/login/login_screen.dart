@@ -17,7 +17,7 @@ class _LoginScreenState extends State<LoginScreen>
   late TabController _tabController;
 
   bool isLoading = false;
-  bool _obscurePassword = true; // 👁 show / hide password
+  bool _obscurePassword = true;
 
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
@@ -85,6 +85,24 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
+  // ---------------- FORGOT PASSWORD ----------------
+  Future<void> _forgotPassword() async {
+    if (emailController.text.trim().isEmpty) {
+      _showError("Please enter your email first");
+      return;
+    }
+
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(
+        email: emailController.text.trim(),
+      );
+
+      _showSuccess("Password reset email sent!");
+    } on FirebaseAuthException catch (e) {
+      _showError(e.message ?? "Something went wrong");
+    }
+  }
+
   // ---------------- SIGN UP ----------------
   Future<void> _signup() async {
     try {
@@ -98,13 +116,20 @@ class _LoginScreenState extends State<LoginScreen>
 
       final uid = userCredential.user!.uid;
 
-      try {
-        await FirebaseFirestore.instance.collection('users').doc(uid).set({
-          'name': nameController.text.trim(),
-          'email': emailController.text.trim(),
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      } catch (_) {}
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        'name': nameController.text.trim(),
+        'email': emailController.text.trim(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      const partnerId = 'SpPtxpqYGsi91opBOF7W';
+
+      await FirebaseFirestore.instance
+          .collection('partners')
+          .doc(partnerId)
+          .update({
+        'members': FieldValue.arrayUnion([uid]),
+      });
 
       if (!mounted) return;
 
@@ -115,6 +140,8 @@ class _LoginScreenState extends State<LoginScreen>
       );
     } on FirebaseAuthException catch (e) {
       _showError(e.message ?? 'Signup failed');
+    } catch (e) {
+      _showError('Something went wrong');
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -132,7 +159,6 @@ class _LoginScreenState extends State<LoginScreen>
             width: 380,
             child: Column(
               children: [
-                // LOGO
                 Column(
                   children: [
                     Container(
@@ -168,9 +194,7 @@ class _LoginScreenState extends State<LoginScreen>
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 32),
-
                 ClipRRect(
                   borderRadius: BorderRadius.circular(24),
                   child: BackdropFilter(
@@ -196,7 +220,7 @@ class _LoginScreenState extends State<LoginScreen>
                             ],
                           ),
                           SizedBox(
-                            height: 400,
+                            height: 420,
                             child: TabBarView(
                               controller: _tabController,
                               children: [
@@ -234,7 +258,24 @@ class _LoginScreenState extends State<LoginScreen>
             hint: '••••••••',
             obscure: true,
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 8),
+
+          // 🔥 FORGOT PASSWORD BUTTON
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _forgotPassword,
+              child: const Text(
+                "Forgot Password?",
+                style: TextStyle(
+                  color: Color(0xFF6366F1),
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 20),
           _primaryButton('Login'),
         ],
       ),
