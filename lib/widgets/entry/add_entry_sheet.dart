@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:lottie/lottie.dart';
 
 import '../../data/demo_categories.dart';
 import '../../constants/active_partner.dart';
 import '../../services/expense_service.dart';
-
+import 'dart:ui';
 class AddEntrySheet extends StatefulWidget {
   const AddEntrySheet({super.key});
 
@@ -19,8 +20,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
   final TextEditingController amountController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
 
-  DateTime selectedDate = DateTime.now(); // ✅ NEW
-
+  DateTime selectedDate = DateTime.now();
   bool isSaving = false;
 
   @override
@@ -63,7 +63,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
               _typeToggle(),
               const SizedBox(height: 24),
 
-              _datePickerChip(), // ✅ NEW DATE PICKER
+              _datePickerChip(),
               const SizedBox(height: 24),
 
               _sectionLabel('Amount'),
@@ -87,7 +87,180 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
     );
   }
 
-  // ───────── DATE PICKER CHIP ─────────
+  // ✅ SUCCESS ANIMATION
+ Future<void> _showSuccessAnimation() async {
+  final overlay = Overlay.of(context);
+  late OverlayEntry overlayEntry;
+
+  overlayEntry = OverlayEntry(
+    builder: (context) => Center(
+      child: Material(
+        color: Colors.black.withOpacity(0.4),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            margin: const EdgeInsets.symmetric(horizontal: 40),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1F2937),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Lottie.asset(
+                  selectedType == EntryType.expense
+                      ? 'assets/animations/expense_success.json'
+                      : 'assets/animations/income_success.json',
+                  width: 140,
+                  repeat: false,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  selectedType == EntryType.expense
+                      ? "Expense Added!"
+                      : "Income Added!",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  overlay.insert(overlayEntry);
+
+  // Wait 5 seconds
+  await Future.delayed(const Duration(seconds: 5));
+
+  // Remove popup completely
+  overlayEntry.remove();
+
+  // Then close bottom sheet
+  if (mounted) {
+    Navigator.of(context).pop();
+  }
+}
+
+
+
+
+
+  // ✅ HANDLE SUBMIT
+  Future<void> _handleSubmit() async {
+  try {
+    setState(() => isSaving = true);
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final category =
+        demoCategories.firstWhere((c) => c.id == selectedCategory);
+
+    final String finalTitle =
+        descriptionController.text.trim().isEmpty
+            ? category.name
+            : descriptionController.text.trim();
+
+    await ExpenseService.addExpense(
+      partnerId: activePartnerId,
+      title: finalTitle,
+      amount: double.parse(amountController.text.trim()),
+      type: selectedType == EntryType.expense ? 'expense' : 'income',
+      category: selectedCategory!,
+      paidBy: user.uid,
+      createdAt: DateTime(
+        selectedDate.year,
+        selectedDate.month,
+        selectedDate.day,
+        DateTime.now().hour,
+        DateTime.now().minute,
+        DateTime.now().second,
+      ),
+    );
+
+    if (!mounted) return;
+
+    // 🔥 Close bottom sheet FIRST
+    Navigator.of(context).pop();
+
+    // 🔥 Then show success on home screen
+    _showHomeSuccess(context);
+
+  } finally {
+    if (mounted) setState(() => isSaving = false);
+  }
+}
+void _showHomeSuccess(BuildContext context) async {
+  final overlay = Overlay.of(context);
+  late OverlayEntry overlayEntry;
+
+  overlayEntry = OverlayEntry(
+    builder: (context) => Material(
+      type: MaterialType.transparency,
+      child: Stack(
+        children: [
+          // ✅ BLUR BACKGROUND
+          BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+            child: Container(
+              color: Colors.black.withOpacity(0.1), 
+            ),
+          ),
+
+          // ✅ CENTER POPUP
+          Center(
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              margin: const EdgeInsets.symmetric(horizontal: 40),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1F2937),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Lottie.asset(
+                    selectedType == EntryType.expense
+                        ? 'assets/animations/expense_success.json'
+                        : 'assets/animations/income_success.json',
+                    width: 140,
+                    repeat: false,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    selectedType == EntryType.expense
+                        ? "Expense Added!"
+                        : "Income Added!",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  overlay.insert(overlayEntry);
+
+  await Future.delayed(const Duration(seconds: 5));
+
+  overlayEntry.remove();
+}
+
+
+  // ───────── DATE PICKER ─────────
 
   Widget _datePickerChip() {
     return GestureDetector(
@@ -101,7 +274,8 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.calendar_today, size: 16, color: Colors.white70),
+            const Icon(Icons.calendar_today,
+                size: 16, color: Colors.white70),
             const SizedBox(width: 8),
             Text(
               "${selectedDate.day}/${selectedDate.month}/${selectedDate.year}",
@@ -140,8 +314,10 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
       ),
       child: Row(
         children: [
-          _typeButton('Expense', EntryType.expense, const Color(0xFFEF4444)),
-          _typeButton('Income', EntryType.income, const Color(0xFF3B82F6)),
+          _typeButton('Expense', EntryType.expense,
+              const Color(0xFFEF4444)),
+          _typeButton('Income', EntryType.income,
+              const Color(0xFF3B82F6)),
         ],
       ),
     );
@@ -149,6 +325,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
 
   Widget _typeButton(String label, EntryType type, Color color) {
     final active = selectedType == type;
+
     return Expanded(
       child: GestureDetector(
         onTap: () {
@@ -163,7 +340,8 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
           decoration: BoxDecoration(
             color: active ? color.withOpacity(0.25) : Colors.transparent,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: active ? color : Colors.transparent),
+            border:
+                Border.all(color: active ? color : Colors.transparent),
           ),
           child: Text(
             label,
@@ -177,7 +355,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
     );
   }
 
-  // ───────── AMOUNT ─────────
+  // ───────── AMOUNT FIELD ─────────
 
   Widget _amountField() {
     return Container(
@@ -230,6 +408,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
       mainAxisSpacing: 10,
       children: categories.map((cat) {
         final selected = selectedCategory == cat.id;
+
         return GestureDetector(
           onTap: () => setState(() => selectedCategory = cat.id),
           child: Container(
@@ -240,14 +419,18 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
                   : Colors.white10,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: selected ? _submitColor : Colors.transparent,
+                color:
+                    selected ? _submitColor : Colors.transparent,
                 width: 2,
               ),
             ),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment:
+                  MainAxisAlignment.center,
               children: [
-                Text(cat.icon, style: const TextStyle(fontSize: 20)),
+                Text(cat.icon,
+                    style:
+                        const TextStyle(fontSize: 20)),
                 const SizedBox(height: 6),
                 Text(
                   cat.name,
@@ -255,7 +438,9 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: selected ? _submitColor : Colors.white70,
+                    color: selected
+                        ? _submitColor
+                        : Colors.white70,
                   ),
                 ),
               ],
@@ -268,7 +453,8 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
 
   Widget _descriptionField() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: Colors.white10,
         borderRadius: BorderRadius.circular(18),
@@ -279,7 +465,8 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
         style: const TextStyle(color: Colors.white),
         decoration: const InputDecoration(
           hintText: 'Add a note...',
-          hintStyle: TextStyle(color: Colors.white38),
+          hintStyle:
+              TextStyle(color: Colors.white38),
           border: InputBorder.none,
         ),
       ),
@@ -289,8 +476,8 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
   Widget _submitButton() {
     final enabled =
         selectedCategory != null &&
-        amountController.text.isNotEmpty &&
-        !isSaving;
+            amountController.text.isNotEmpty &&
+            !isSaving;
 
     return SizedBox(
       width: double.infinity,
@@ -300,9 +487,11 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
         style: ElevatedButton.styleFrom(
           backgroundColor: _submitColor,
           foregroundColor: Colors.white,
-          disabledBackgroundColor: Colors.white.withOpacity(0.15),
+          disabledBackgroundColor:
+              Colors.white.withOpacity(0.15),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius:
+                BorderRadius.circular(28),
           ),
           elevation: 0,
         ),
@@ -321,63 +510,21 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
     );
   }
 
- Future<void> _handleSubmit() async {
-  try {
-    setState(() => isSaving = true);
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    // ✅ Get category object
-    final category = demoCategories.firstWhere(
-      (c) => c.id == selectedCategory,
-    );
-
-    // ✅ If description empty → use category name (Food, Travel, etc.)
-    final String finalTitle =
-        descriptionController.text.trim().isEmpty
-            ? category.name
-            : descriptionController.text.trim();
-
-    await ExpenseService.addExpense(
-      partnerId: activePartnerId,
-      title: finalTitle, // ✅ FIXED HERE
-      amount: double.parse(amountController.text.trim()),
-      type: selectedType == EntryType.expense ? 'expense' : 'income',
-      category: selectedCategory!,
-      paidBy: user.uid,
-      createdAt: DateTime(
-        selectedDate.year,
-        selectedDate.month,
-        selectedDate.day,
-        DateTime.now().hour,
-        DateTime.now().minute,
-        DateTime.now().second,
-      ),
-    );
-
-    if (mounted) {
-      Navigator.pop(context);
-    }
-  } finally {
-    if (mounted) setState(() => isSaving = false);
-  }
-}
-
-
   Widget _dragHandle() => Center(
         child: Container(
           width: 40,
           height: 4,
           decoration: BoxDecoration(
             color: Colors.white24,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius:
+                BorderRadius.circular(4),
           ),
         ),
       );
 
   Widget _header(BuildContext context) => Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment:
+            MainAxisAlignment.spaceBetween,
         children: [
           const Text(
             'Add Entry',
@@ -394,21 +541,27 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
               height: 32,
               decoration: BoxDecoration(
                 color: Colors.white12,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius:
+                    BorderRadius.circular(16),
               ),
-              child: const Icon(Icons.close,
-                  color: Colors.white70, size: 18),
+              child: const Icon(
+                Icons.close,
+                color: Colors.white70,
+                size: 18,
+              ),
             ),
           ),
         ],
       );
 
   Widget _sectionLabel(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
+        padding:
+            const EdgeInsets.only(bottom: 6),
         child: Text(
           text,
-          style:
-              const TextStyle(color: Colors.white70, fontSize: 13),
+          style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 13),
         ),
       );
 }
