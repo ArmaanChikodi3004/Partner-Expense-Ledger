@@ -262,46 +262,69 @@ void _showHomeSuccess(BuildContext context) async {
 
   // ───────── DATE PICKER ─────────
 
-  Widget _datePickerChip() {
-    return GestureDetector(
-      onTap: _pickDate,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white10,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.calendar_today,
-                size: 16, color: Colors.white70),
-            const SizedBox(width: 8),
-            Text(
-              "${selectedDate.day}/${selectedDate.month}/${selectedDate.year}",
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+ Widget _datePickerChip() {
+  return GestureDetector(
+    onTap: _pickDate,
+    child: Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1F2937), // same as amount field
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1.2,
         ),
       ),
-    );
-  }
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              "${selectedDate.day.toString().padLeft(2, '0')}/"
+              "${selectedDate.month.toString().padLeft(2, '0')}/"
+              "${selectedDate.year}",
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          const Icon(
+            Icons.calendar_today_outlined,
+            color: Colors.white70,
+            size: 20,
+          ),
+        ],
+      ),
+    ),
+  );
+}
+Future<void> _pickDate() async {
+  final picked = await showDatePicker(
+    context: context,
+    initialDate: selectedDate,
+    firstDate: DateTime(2020),
+    lastDate: DateTime.now(),
+    builder: (context, child) {
+      return Theme(
+        data: ThemeData.dark().copyWith(
+          colorScheme: const ColorScheme.dark(
+            primary: Color(0xFF6366F1),
+          ),
+        ),
+        child: child!,
+      );
+    },
+  );
 
-  Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-    );
-
-    if (picked != null) {
-      setState(() => selectedDate = picked);
-    }
+  if (picked != null) {
+    setState(() {
+      selectedDate = picked;
+    });
   }
+}
+
 
   // ───────── TYPE TOGGLE ─────────
 

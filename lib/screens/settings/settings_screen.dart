@@ -27,8 +27,12 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      future: _fetchUser(),
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+  stream: FirebaseFirestore.instance
+      .collection('users')
+      .doc(FirebaseAuth.instance.currentUser!.uid)
+      .snapshots(),
+
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());

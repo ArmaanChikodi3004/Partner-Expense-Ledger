@@ -166,19 +166,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
         : _rangeForCustomChart(activeCustomChartRange);
 
 
-        final summaryEntries = _fromFirestore(docs.where((d) {
-          final t = (d['createdAt'] as Timestamp?)?.toDate();
-          return t != null &&
-              !t.isBefore(summaryRange.start) &&
-              !t.isAfter(summaryRange.end);
-        }).toList());
+       final summaryEntries = _fromFirestore(docs.where((d) {
+  final t = (d['createdAt'] as Timestamp?)?.toDate();
+  return t != null &&
+      !t.isBefore(summaryRange.start) &&
+      !t.isAfter(summaryRange.end);
+}).toList());
 
-        final chartEntries = _fromFirestore(docs.where((d) {
-          final t = (d['createdAt'] as Timestamp?)?.toDate();
-          return t != null &&
-              !t.isBefore(chartRange.start) &&
-              !t.isAfter(chartRange.end);
-        }).toList());
+// 🔥 FIXED
+final chartEntries = _fromFirestore(docs);
+
 
         final income = _sum(summaryEntries, EntryType.income);
         final expense = _sum(summaryEntries, EntryType.expense);

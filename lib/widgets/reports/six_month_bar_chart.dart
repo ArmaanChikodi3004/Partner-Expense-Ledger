@@ -294,11 +294,10 @@ class _SixMonthBarChartState extends State<SixMonthBarChart> {
     selectedYear = DateTime.now().year;
   }
 
-  // 🔥 IMPORTANT FIX — ensures chart updates when new entries come
+  // 🔥 Ensures chart updates when new Firestore data comes
   @override
   void didUpdateWidget(covariant SixMonthBarChart oldWidget) {
     super.didUpdateWidget(oldWidget);
-
     if (oldWidget.entries != widget.entries) {
       setState(() {});
     }
@@ -308,10 +307,21 @@ class _SixMonthBarChartState extends State<SixMonthBarChart> {
   Widget build(BuildContext context) {
     final data = _buildYearData(selectedYear);
 
+    // Prevent crash if empty
+    if (data.isEmpty) {
+      return const SizedBox();
+    }
+
+    final maxY = data
+            .map((e) => e.income > e.expense ? e.income : e.expense)
+            .fold<double>(0, (a, b) => a > b ? a : b) *
+        1.2;
+
     return _glassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 🔹 HEADER
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -328,11 +338,12 @@ class _SixMonthBarChartState extends State<SixMonthBarChart> {
                 dropdownColor: const Color(0xFF111827),
                 style: const TextStyle(color: Colors.white),
                 underline: const SizedBox(),
+                iconEnabledColor: Colors.white70,
                 onChanged: (year) {
                   if (year == null) return;
                   setState(() => selectedYear = year);
                 },
-                items: List.generate(5, (i) {
+                items: List.generate(6, (i) {
                   final year = DateTime.now().year - i;
                   return DropdownMenuItem(
                     value: year,
@@ -345,15 +356,17 @@ class _SixMonthBarChartState extends State<SixMonthBarChart> {
 
           const SizedBox(height: 20),
 
+          // 🔹 HORIZONTAL SCROLLABLE CHART
           SizedBox(
             height: 260,
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: SizedBox(
-                width: data.length * 70,
+                width: data.length * 75,
                 child: BarChart(
                   BarChartData(
                     minY: 0,
+                    maxY: maxY == 0 ? 100 : maxY,
                     barGroups: _barGroups(data),
                     titlesData: _titles(data),
                     gridData: FlGridData(show: false),
@@ -380,12 +393,14 @@ class _SixMonthBarChartState extends State<SixMonthBarChart> {
     );
   }
 
-  // ---------------- DATA ----------------
+  // ---------------- YEAR DATA ----------------
 
   List<_ChartUnit> _buildYearData(int year) {
-    final currentYear = DateTime.now().year;
-    final currentMonth = DateTime.now().month;
+    final now = DateTime.now();
+    final currentYear = now.year;
+    final currentMonth = now.month;
 
+    // 🔥 Show only till current month if current year
     final monthCount = year == currentYear ? currentMonth : 12;
 
     return List.generate(monthCount, (i) {
@@ -410,6 +425,8 @@ class _SixMonthBarChartState extends State<SixMonthBarChart> {
       );
     });
   }
+
+  // ---------------- BAR GROUPS ----------------
 
   List<BarChartGroupData> _barGroups(List<_ChartUnit> data) {
     return List.generate(data.length, (i) {
@@ -436,6 +453,8 @@ class _SixMonthBarChartState extends State<SixMonthBarChart> {
     });
   }
 
+  // ---------------- TITLES ----------------
+
   FlTitlesData _titles(List<_ChartUnit> data) {
     return FlTitlesData(
       leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -445,10 +464,12 @@ class _SixMonthBarChartState extends State<SixMonthBarChart> {
         sideTitles: SideTitles(
           showTitles: true,
           getTitlesWidget: (value, _) {
+            final index = value.toInt();
+            if (index >= data.length) return const SizedBox();
             return Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                data[value.toInt()].label,
+                data[index].label,
                 style: const TextStyle(
                   color: Colors.white70,
                   fontSize: 12,
@@ -461,6 +482,8 @@ class _SixMonthBarChartState extends State<SixMonthBarChart> {
     );
   }
 
+  // ---------------- TOOLTIP ----------------
+
   BarTouchData _tooltip() {
     return BarTouchData(
       enabled: true,
@@ -468,7 +491,6 @@ class _SixMonthBarChartState extends State<SixMonthBarChart> {
         tooltipBgColor: const Color(0xFF111827),
         getTooltipItem: (_, __, rod, rodIndex) {
           final isIncome = rodIndex == 0;
-
           return BarTooltipItem(
             '${isIncome ? 'Income' : 'Expense'}\n₹${rod.toY.toStringAsFixed(0)}',
             TextStyle(
@@ -482,6 +504,8 @@ class _SixMonthBarChartState extends State<SixMonthBarChart> {
       ),
     );
   }
+
+  // ---------------- UI HELPERS ----------------
 
   Widget _glassCard({required Widget child}) {
     return Container(
@@ -498,6 +522,8 @@ class _SixMonthBarChartState extends State<SixMonthBarChart> {
   static String _monthName(int m) =>
       const ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m - 1];
 }
+
+// ---------------- MODELS ----------------
 
 class _ChartUnit {
   final String label;
