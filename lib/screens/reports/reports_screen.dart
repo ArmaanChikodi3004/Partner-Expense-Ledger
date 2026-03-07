@@ -683,7 +683,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       await PdfService.downloadReport(
         expenses: docs,
         range: summaryRange,
-        partnerName: 'Partner Ledger',
+        partnerName: 'Swastik Hangers',
         context: context,
       );
     } catch (e) {
@@ -709,7 +709,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       await PdfService.previewReport(
         expenses: docs,
         range: summaryRange,
-        partnerName: 'Partner Ledger',
+        partnerName: 'Swastik Hangers',
         context: context,
       );
     } catch (e) {
