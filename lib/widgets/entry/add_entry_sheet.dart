@@ -591,7 +591,6 @@
 
 
 //Claude
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lottie/lottie.dart';
@@ -600,6 +599,7 @@ import '../../data/demo_categories.dart';
 import '../../constants/active_partner.dart';
 import '../../services/expense_service.dart';
 import 'dart:ui';
+
 class AddEntrySheet extends StatefulWidget {
   const AddEntrySheet({super.key});
 
@@ -647,7 +647,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           child: Column(
-            mainAxisSize: MainAxisSize.min, // ✅ FIX 1: Use min size
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _dragHandle(),
@@ -667,7 +667,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
 
               _sectionLabel('Category'),
               const SizedBox(height: 12),
-              _categoryGrid(categories),
+              _categoryDropdown(categories),
               const SizedBox(height: 24),
 
               _sectionLabel('Description (optional)'),
@@ -683,133 +683,15 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
   }
 
   // ✅ SUCCESS ANIMATION
- Future<void> _showSuccessAnimation() async {
-  final overlay = Overlay.of(context);
-  late OverlayEntry overlayEntry;
+  Future<void> _showSuccessAnimation() async {
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
 
-  overlayEntry = OverlayEntry(
-    builder: (context) => Center(
-      child: Material(
-        color: Colors.black.withOpacity(0.4),
-        child: Center(
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            margin: const EdgeInsets.symmetric(horizontal: 40),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1F2937),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Lottie.asset(
-                  selectedType == EntryType.expense
-                      ? 'assets/animations/expense_success.json'
-                      : 'assets/animations/income_success.json',
-                  width: 140,
-                  repeat: false,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  selectedType == EntryType.expense
-                      ? "Expense Added!"
-                      : "Income Added!",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
-
-  overlay.insert(overlayEntry);
-
-  // Wait 5 seconds
-  await Future.delayed(const Duration(seconds: 5));
-
-  // Remove popup completely
-  overlayEntry.remove();
-
-  // Then close bottom sheet
-  if (mounted) {
-    Navigator.of(context).pop();
-  }
-}
-
-
-
-
-
-  // ✅ HANDLE SUBMIT
-  Future<void> _handleSubmit() async {
-  try {
-    setState(() => isSaving = true);
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    final category =
-        demoCategories.firstWhere((c) => c.id == selectedCategory);
-
-    final String finalTitle =
-        descriptionController.text.trim().isEmpty
-            ? category.name
-            : descriptionController.text.trim();
-
-    await ExpenseService.addExpense(
-      partnerId: activePartnerId,
-      title: finalTitle,
-      amount: double.parse(amountController.text.trim()),
-      type: selectedType == EntryType.expense ? 'expense' : 'income',
-      category: selectedCategory!,
-      paidBy: user.uid,
-      createdAt: DateTime(
-        selectedDate.year,
-        selectedDate.month,
-        selectedDate.day,
-        DateTime.now().hour,
-        DateTime.now().minute,
-        DateTime.now().second,
-      ),
-    );
-
-    if (!mounted) return;
-
-    // 🔥 Close bottom sheet FIRST
-    Navigator.of(context).pop();
-
-    // 🔥 Then show success on home screen
-    _showHomeSuccess(context);
-
-  } finally {
-    if (mounted) setState(() => isSaving = false);
-  }
-}
-void _showHomeSuccess(BuildContext context) async {
-  final overlay = Overlay.of(context);
-  late OverlayEntry overlayEntry;
-
-  overlayEntry = OverlayEntry(
-    builder: (context) => Material(
-      type: MaterialType.transparency,
-      child: Stack(
-        children: [
-          // ✅ BLUR BACKGROUND
-          BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-            child: Container(
-              color: Colors.black.withOpacity(0.1), 
-            ),
-          ),
-
-          // ✅ CENTER POPUP
-          Center(
+    overlayEntry = OverlayEntry(
+      builder: (context) => Center(
+        child: Material(
+          color: Colors.black.withOpacity(0.4),
+          child: Center(
             child: Container(
               padding: const EdgeInsets.all(24),
               margin: const EdgeInsets.symmetric(horizontal: 40),
@@ -842,84 +724,197 @@ void _showHomeSuccess(BuildContext context) async {
               ),
             ),
           ),
-        ],
+        ),
       ),
-    ),
-  );
+    );
 
-  overlay.insert(overlayEntry);
+    overlay.insert(overlayEntry);
 
-  await Future.delayed(const Duration(seconds: 5));
+    // Wait 5 seconds
+    await Future.delayed(const Duration(seconds: 5));
 
-  overlayEntry.remove();
-}
+    // Remove popup completely
+    overlayEntry.remove();
 
+    // Then close bottom sheet
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  // ✅ HANDLE SUBMIT
+  Future<void> _handleSubmit() async {
+    try {
+      setState(() => isSaving = true);
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final category =
+          demoCategories.firstWhere((c) => c.id == selectedCategory);
+
+      final String finalTitle =
+          descriptionController.text.trim().isEmpty
+              ? category.name
+              : descriptionController.text.trim();
+
+      await ExpenseService.addExpense(
+        partnerId: activePartnerId,
+        title: finalTitle,
+        amount: double.parse(amountController.text.trim()),
+        type: selectedType == EntryType.expense ? 'expense' : 'income',
+        category: selectedCategory!,
+        paidBy: user.uid,
+        createdAt: DateTime(
+          selectedDate.year,
+          selectedDate.month,
+          selectedDate.day,
+          DateTime.now().hour,
+          DateTime.now().minute,
+          DateTime.now().second,
+        ),
+      );
+
+      if (!mounted) return;
+
+      // 🔥 Close bottom sheet FIRST
+      Navigator.of(context).pop();
+
+      // 🔥 Then show success on home screen
+      _showHomeSuccess(context);
+    } finally {
+      if (mounted) setState(() => isSaving = false);
+    }
+  }
+
+  void _showHomeSuccess(BuildContext context) async {
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => Material(
+        type: MaterialType.transparency,
+        child: Stack(
+          children: [
+            // ✅ BLUR BACKGROUND
+            BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+              child: Container(
+                color: Colors.black.withOpacity(0.1),
+              ),
+            ),
+
+            // ✅ CENTER POPUP
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                margin: const EdgeInsets.symmetric(horizontal: 40),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1F2937),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Lottie.asset(
+                      selectedType == EntryType.expense
+                          ? 'assets/animations/expense_success.json'
+                          : 'assets/animations/income_success.json',
+                      width: 140,
+                      repeat: false,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      selectedType == EntryType.expense
+                          ? "Expense Added!"
+                          : "Income Added!",
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    overlay.insert(overlayEntry);
+
+    await Future.delayed(const Duration(seconds: 5));
+
+    overlayEntry.remove();
+  }
 
   // ───────── DATE PICKER ─────────
 
- Widget _datePickerChip() {
-  return GestureDetector(
-    onTap: _pickDate,
-    child: Container(
-      height: 56,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1F2937), // same as amount field
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.2),
-          width: 1.2,
+  Widget _datePickerChip() {
+    return GestureDetector(
+      onTap: _pickDate,
+      child: Container(
+        height: 56,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1F2937),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.2),
+            width: 1.2,
+          ),
         ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              "${selectedDate.day.toString().padLeft(2, '0')}/"
-              "${selectedDate.month.toString().padLeft(2, '0')}/"
-              "${selectedDate.year}",
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                "${selectedDate.day.toString().padLeft(2, '0')}/"
+                "${selectedDate.month.toString().padLeft(2, '0')}/"
+                "${selectedDate.year}",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
-          ),
-          const Icon(
-            Icons.calendar_today_outlined,
-            color: Colors.white70,
-            size: 20,
-          ),
-        ],
-      ),
-    ),
-  );
-}
-Future<void> _pickDate() async {
-  final picked = await showDatePicker(
-    context: context,
-    initialDate: selectedDate,
-    firstDate: DateTime(2020),
-    lastDate: DateTime.now(),
-    builder: (context, child) {
-      return Theme(
-        data: ThemeData.dark().copyWith(
-          colorScheme: const ColorScheme.dark(
-            primary: Color(0xFF6366F1),
-          ),
+            const Icon(
+              Icons.calendar_today_outlined,
+              color: Colors.white70,
+              size: 20,
+            ),
+          ],
         ),
-        child: child!,
-      );
-    },
-  );
-
-  if (picked != null) {
-    setState(() {
-      selectedDate = picked;
-    });
+      ),
+    );
   }
-}
 
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.dark().copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Color(0xFF6366F1),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        selectedDate = picked;
+      });
+    }
+  }
 
   // ───────── TYPE TOGGLE ─────────
 
@@ -932,10 +927,8 @@ Future<void> _pickDate() async {
       ),
       child: Row(
         children: [
-          _typeButton('Expense', EntryType.expense,
-              const Color(0xFFEF4444)),
-          _typeButton('Income', EntryType.income,
-              const Color(0xFF3B82F6)),
+          _typeButton('Expense', EntryType.expense, const Color(0xFFEF4444)),
+          _typeButton('Income', EntryType.income, const Color(0xFF3B82F6)),
         ],
       ),
     );
@@ -958,8 +951,7 @@ Future<void> _pickDate() async {
           decoration: BoxDecoration(
             color: active ? color.withOpacity(0.25) : Colors.transparent,
             borderRadius: BorderRadius.circular(16),
-            border:
-                Border.all(color: active ? color : Colors.transparent),
+            border: Border.all(color: active ? color : Colors.transparent),
           ),
           child: Text(
             label,
@@ -1015,61 +1007,60 @@ Future<void> _pickDate() async {
     );
   }
 
-  // ───────── CATEGORY GRID ─────────
-  // ✅ FIX 2: Replace GridView with Wrap to prevent overflow
-  Widget _categoryGrid(List<DemoCategory> categories) {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: categories.map((cat) {
-        final selected = selectedCategory == cat.id;
-
-        return GestureDetector(
-          onTap: () => setState(() => selectedCategory = cat.id),
-          child: Container(
-            width: (MediaQuery.of(context).size.width - 70) / 4, // ✅ Calculate width properly
-            height: 85, // ✅ Fixed height
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: selected
-                  ? _submitColor.withOpacity(0.25)
-                  : Colors.white10,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color:
-                    selected ? _submitColor : Colors.transparent,
-                width: 2,
-              ),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(cat.icon,
-                    style: const TextStyle(fontSize: 20)),
-                const SizedBox(height: 6),
-                Text(
-                  cat.name,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: selected
-                        ? _submitColor
-                        : Colors.white70,
-                  ),
-                ),
-              ],
+  // ───────── CATEGORY DROPDOWN ─────────
+  Widget _categoryDropdown(List<DemoCategory> categories) {
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1F2937),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1.2,
+        ),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: selectedCategory,
+          hint: const Text(
+            'Select a category',
+            style: TextStyle(
+              color: Colors.white54,
+              fontSize: 16,
             ),
           ),
-        );
-      }).toList(),
+          isExpanded: true,
+          icon: const Icon(
+            Icons.keyboard_arrow_down,
+            color: Colors.white70,
+            size: 24,
+          ),
+          dropdownColor: const Color(0xFF1F2937),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
+          items: categories.map((category) {
+            return DropdownMenuItem<String>(
+              value: category.id,
+              child: Text(category.name),
+            );
+          }).toList(),
+          onChanged: (String? newValue) {
+            setState(() {
+              selectedCategory = newValue;
+            });
+          },
+        ),
+      ),
     );
   }
 
   Widget _descriptionField() {
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: Colors.white10,
         borderRadius: BorderRadius.circular(18),
@@ -1080,8 +1071,7 @@ Future<void> _pickDate() async {
         style: const TextStyle(color: Colors.white),
         decoration: const InputDecoration(
           hintText: 'Add a note...',
-          hintStyle:
-              TextStyle(color: Colors.white38),
+          hintStyle: TextStyle(color: Colors.white38),
           border: InputBorder.none,
         ),
       ),
@@ -1089,10 +1079,9 @@ Future<void> _pickDate() async {
   }
 
   Widget _submitButton() {
-    final enabled =
-        selectedCategory != null &&
-            amountController.text.isNotEmpty &&
-            !isSaving;
+    final enabled = selectedCategory != null &&
+        amountController.text.isNotEmpty &&
+        !isSaving;
 
     return SizedBox(
       width: double.infinity,
@@ -1102,11 +1091,9 @@ Future<void> _pickDate() async {
         style: ElevatedButton.styleFrom(
           backgroundColor: _submitColor,
           foregroundColor: Colors.white,
-          disabledBackgroundColor:
-              Colors.white.withOpacity(0.15),
+          disabledBackgroundColor: Colors.white.withOpacity(0.15),
           shape: RoundedRectangleBorder(
-            borderRadius:
-                BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(28),
           ),
           elevation: 0,
         ),
@@ -1131,15 +1118,13 @@ Future<void> _pickDate() async {
           height: 4,
           decoration: BoxDecoration(
             color: Colors.white24,
-            borderRadius:
-                BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(4),
           ),
         ),
       );
 
   Widget _header(BuildContext context) => Row(
-        mainAxisAlignment:
-            MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           const Text(
             'Add Entry',
@@ -1156,8 +1141,7 @@ Future<void> _pickDate() async {
               height: 32,
               decoration: BoxDecoration(
                 color: Colors.white12,
-                borderRadius:
-                    BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(16),
               ),
               child: const Icon(
                 Icons.close,
@@ -1170,13 +1154,10 @@ Future<void> _pickDate() async {
       );
 
   Widget _sectionLabel(String text) => Padding(
-        padding:
-            const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.only(bottom: 6),
         child: Text(
           text,
-          style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 13),
+          style: const TextStyle(color: Colors.white70, fontSize: 13),
         ),
       );
 }
