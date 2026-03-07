@@ -63,8 +63,7 @@ class CategoryDonutChart extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 14),
                 child: _LegendItem(
                   color: _colorForCategory(entry.key),
-             label: '${_emojiForCategory(entry.key)} ${_displayName(entry.key)}',
-
+                  label: _displayName(entry.key),
                   value: '${percent.toStringAsFixed(1)}%',
                 ),
               );
@@ -84,6 +83,14 @@ class CategoryDonutChart extends StatelessWidget {
         return const Color(0xFFEF4444);
       case 'travel':
         return const Color(0xFF3B82F6);
+      case 'fuel':
+        return const Color(0xFFF59E0B); // Amber/Orange
+      case 'maintenance':
+        return const Color(0xFF10B981); // Emerald Green
+      case 'lodging':
+        return const Color(0xFFEC4899); // Pink
+      case 'office':
+        return const Color(0xFF06B6D4); // Cyan
       default:
         return Colors.grey;
     }
@@ -115,6 +122,14 @@ String _displayName(String category) {
       return 'Shopping';
     case 'other_expense':
       return 'Others';
+    case 'fuel':
+      return 'Fuel';
+    case 'maintenance':
+      return 'Maintenance';
+     case 'lodging':
+      return 'Lodging';
+     case 'office':
+      return 'Office';
     default:
       return category;
   }

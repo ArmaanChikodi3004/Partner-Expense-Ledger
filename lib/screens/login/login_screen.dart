@@ -409,7 +409,6 @@
 
 
 
-
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -436,13 +435,11 @@ class _LoginScreenState extends State<LoginScreen>
 
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  final TextEditingController nameController = TextEditingController(); // kept for future
+  final TextEditingController nameController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-
-    // 🔥 Changed length from 2 → 1
     _tabController = TabController(length: 1, vsync: this);
   }
 
@@ -565,57 +562,24 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  // ---------------- SIGN UP (COMMENTED FOR FUTURE USE) ----------------
+  // ---------------- FORGOT PASSWORD ----------------
 
-  /*
-  Future<void> _signup() async {
+  Future<void> _forgotPassword() async {
+    if (emailController.text.trim().isEmpty) {
+      _showError("Please enter your email first");
+      return;
+    }
+
     try {
-      setState(() => isLoading = true);
-      _showLoading();
-
-      final userCredential =
-          await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      await FirebaseAuth.instance.sendPasswordResetEmail(
         email: emailController.text.trim(),
-        password: passwordController.text.trim(),
       );
 
-      final uid = userCredential.user!.uid;
-
-      await FirebaseFirestore.instance.collection('users').doc(uid).set({
-        'name': nameController.text.trim(),
-        'email': emailController.text.trim(),
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-
-      const partnerId = 'SpPtxpqYGsi91opBOF7W';
-
-      await FirebaseFirestore.instance
-          .collection('partners')
-          .doc(partnerId)
-          .update({
-        'members': FieldValue.arrayUnion([uid]),
-      });
-
-      _hideLoading();
-
-      if (!mounted) return;
-
-      _showSuccess('Account created successfully!');
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
+      _showSuccess("Password reset email sent!");
     } on FirebaseAuthException catch (e) {
-      _hideLoading();
-      _showError(e.message ?? 'Signup failed');
-    } catch (e) {
-      _hideLoading();
-      _showError('Something went wrong');
-    } finally {
-      if (mounted) setState(() => isLoading = false);
+      _showError(e.message ?? "Something went wrong");
     }
   }
-  */
 
   // ---------------- UI ----------------
 
@@ -667,7 +631,6 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
                 const SizedBox(height: 32),
 
-                // 🔥 SIGN UP TAB REMOVED
                 ClipRRect(
                   borderRadius: BorderRadius.circular(24),
                   child: BackdropFilter(
@@ -728,8 +691,25 @@ class _LoginScreenState extends State<LoginScreen>
             hint: '••••••••',
             obscure: true,
           ),
+
           const SizedBox(height: 8),
-          const SizedBox(height: 20),
+
+          // ✅ FORGOT PASSWORD BUTTON ADDED
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _forgotPassword,
+              child: const Text(
+                "Forgot Password?",
+                style: TextStyle(
+                  color: Color(0xFF6366F1),
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
           _primaryButton('Login'),
         ],
       ),
