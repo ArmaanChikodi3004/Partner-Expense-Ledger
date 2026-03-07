@@ -110,7 +110,7 @@ class PdfService {
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
                         pw.Text(
-                          'Partner Ledger',
+                          'Swastik Hangers',
                           style: pw.TextStyle(
                             color: textColor,
                             fontSize: 22,
