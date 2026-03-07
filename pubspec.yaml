@@ -36,6 +36,11 @@ dependencies:
   open_filex: ^4.4.0
   webview_flutter: ^4.7.0
   lottie: ^2.7.0
+  pdf: ^3.10.4
+  printing: ^5.11.1
+  path_provider: ^2.1.1
+  share_plus: ^7.2.1
+  file_picker: ^8.1.2
   
 
  
