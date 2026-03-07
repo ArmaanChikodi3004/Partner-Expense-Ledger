@@ -598,8 +598,15 @@ import 'package:lottie/lottie.dart';
 import '../../data/demo_categories.dart';
 import '../../constants/active_partner.dart';
 import '../../services/expense_service.dart';
+import '../../services/category_service.dart';
+import '../../models/custom_category.dart';
 import 'dart:ui';
 
+
+
+// ─────────────────────────────────────────────
+// Main Sheet
+// ─────────────────────────────────────────────
 class AddEntrySheet extends StatefulWidget {
   const AddEntrySheet({super.key});
 
@@ -617,6 +624,8 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
   DateTime selectedDate = DateTime.now();
   bool isSaving = false;
 
+  List<CustomCategory> _customCategories = [];
+
   @override
   void dispose() {
     amountController.dispose();
@@ -629,162 +638,175 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
           ? const Color(0xFFEF4444)
           : const Color(0xFF3B82F6);
 
-  @override
-  Widget build(BuildContext context) {
-    final categories =
-        demoCategories.where((c) => c.type == selectedType).toList();
+  List<DemoCategory> get _allCategories {
+    final builtIn = demoCategories.where((c) => c.type == selectedType).toList();
+    final custom = _customCategories
+        .where((c) => c.type == selectedType)
+        .map((c) => DemoCategory(
+              id: c.id,
+              name: c.name,
+              type: c.type,
+              icon: '🏷️',
+              color: const Color(0xFF9CA3AF),
+            ))
+        .toList();
+    return [...builtIn, ...custom];
+  }
 
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFF111827),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _dragHandle(),
-              const SizedBox(height: 20),
-              _header(context),
-              const SizedBox(height: 24),
-
-              _typeToggle(),
-              const SizedBox(height: 24),
-
-              _datePickerChip(),
-              const SizedBox(height: 24),
-
-              _sectionLabel('Amount'),
-              _amountField(),
-              const SizedBox(height: 24),
-
-              _sectionLabel('Category'),
-              const SizedBox(height: 12),
-              _categoryDropdown(categories),
-              const SizedBox(height: 24),
-
-              _sectionLabel('Description (optional)'),
-              _descriptionField(),
-              const SizedBox(height: 32),
-
-              _submitButton(),
-            ],
-          ),
-        ),
+  void _openAddCategorySheet() {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _AddCategorySheet(
+      type: selectedType,
+      existingNames: _allCategories.map((c) => c.name.toLowerCase()).toList(),
+      onAdded: (String name) async {
+        await CategoryService.addCategory(
+          partnerId: activePartnerId,
+          name: name,
+          type: selectedType,
+        );
+        // Don't auto-select — let the stream refresh the dropdown
+      },
+    ),
+  );
+}
+  void _openManageCategoriesSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ManageCategoriesSheet(
+        type: selectedType,
+        customCategories: _customCategories
+            .where((c) => c.type == selectedType)
+            .toList(),
+        onDeleted: (String categoryId) async {
+          await CategoryService.deleteCategory(
+            partnerId: activePartnerId,
+            categoryId: categoryId,
+          );
+          if (selectedCategory == categoryId) {
+            setState(() => selectedCategory = null);
+          }
+        },
       ),
     );
   }
 
-  // ✅ SUCCESS ANIMATION
-  Future<void> _showSuccessAnimation() async {
-    final overlay = Overlay.of(context);
-    late OverlayEntry overlayEntry;
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<CustomCategory>>(
+      stream: CategoryService.streamCategories(partnerId: activePartnerId),
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          _customCategories = snapshot.data!;
+        }
 
-    overlayEntry = OverlayEntry(
-      builder: (context) => Center(
-        child: Material(
-          color: Colors.black.withOpacity(0.4),
-          child: Center(
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              margin: const EdgeInsets.symmetric(horizontal: 40),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1F2937),
-                borderRadius: BorderRadius.circular(24),
-              ),
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Color(0xFF111827),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Lottie.asset(
-                    selectedType == EntryType.expense
-                        ? 'assets/animations/expense_success.json'
-                        : 'assets/animations/income_success.json',
-                    width: 140,
-                    repeat: false,
-                  ),
+                  _dragHandle(),
+                  const SizedBox(height: 20),
+                  _header(context),
+                  const SizedBox(height: 24),
+                  _typeToggle(),
+                  const SizedBox(height: 24),
+                  _datePickerChip(),
+                  const SizedBox(height: 24),
+                  _sectionLabel('Amount'),
+                  _amountField(),
+                  const SizedBox(height: 24),
+                  _categoryHeader(),
                   const SizedBox(height: 12),
-                  Text(
-                    selectedType == EntryType.expense
-                        ? "Expense Added!"
-                        : "Income Added!",
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  _categoryDropdown(_allCategories),
+                  const SizedBox(height: 24),
+                  _sectionLabel('Description (optional)'),
+                  _descriptionField(),
+                  const SizedBox(height: 32),
+                  _submitButton(),
                 ],
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
-
-    overlay.insert(overlayEntry);
-
-    // Wait 5 seconds
-    await Future.delayed(const Duration(seconds: 5));
-
-    // Remove popup completely
-    overlayEntry.remove();
-
-    // Then close bottom sheet
-    if (mounted) {
-      Navigator.of(context).pop();
-    }
   }
 
-  // ✅ HANDLE SUBMIT
-  Future<void> _handleSubmit() async {
-    try {
-      setState(() => isSaving = true);
+  Widget _categoryHeader() {
+    final hasCustom = _customCategories.any((c) => c.type == selectedType);
 
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
-      final category =
-          demoCategories.firstWhere((c) => c.id == selectedCategory);
-
-      final String finalTitle =
-          descriptionController.text.trim().isEmpty
-              ? category.name
-              : descriptionController.text.trim();
-
-      await ExpenseService.addExpense(
-        partnerId: activePartnerId,
-        title: finalTitle,
-        amount: double.parse(amountController.text.trim()),
-        type: selectedType == EntryType.expense ? 'expense' : 'income',
-        category: selectedCategory!,
-        paidBy: user.uid,
-        createdAt: DateTime(
-          selectedDate.year,
-          selectedDate.month,
-          selectedDate.day,
-          DateTime.now().hour,
-          DateTime.now().minute,
-          DateTime.now().second,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const Text(
+          'Category',
+          style: TextStyle(color: Colors.white70, fontSize: 13),
         ),
-      );
-
-      if (!mounted) return;
-
-      // 🔥 Close bottom sheet FIRST
-      Navigator.of(context).pop();
-
-      // 🔥 Then show success on home screen
-      _showHomeSuccess(context);
-    } finally {
-      if (mounted) setState(() => isSaving = false);
-    }
+        Row(
+          children: [
+            if (hasCustom)
+              GestureDetector(
+                onTap: _openManageCategoriesSheet,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white10,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.edit_outlined, size: 13, color: Colors.white54),
+                      SizedBox(width: 4),
+                      Text(
+                        'Manage',
+                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            GestureDetector(
+              onTap: _openAddCategorySheet,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _submitColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _submitColor.withOpacity(0.4)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.add, size: 13, color: _submitColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      'New',
+                      style: TextStyle(color: _submitColor, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
   void _showHomeSuccess(BuildContext context) async {
@@ -796,15 +818,10 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
         type: MaterialType.transparency,
         child: Stack(
           children: [
-            // ✅ BLUR BACKGROUND
             BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-              child: Container(
-                color: Colors.black.withOpacity(0.1),
-              ),
+              child: Container(color: Colors.black.withOpacity(0.1)),
             ),
-
-            // ✅ CENTER POPUP
             Center(
               child: Container(
                 padding: const EdgeInsets.all(24),
@@ -844,13 +861,48 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
     );
 
     overlay.insert(overlayEntry);
-
     await Future.delayed(const Duration(seconds: 5));
-
     overlayEntry.remove();
   }
 
-  // ───────── DATE PICKER ─────────
+  Future<void> _handleSubmit() async {
+    try {
+      setState(() => isSaving = true);
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final category = _allCategories.firstWhere((c) => c.id == selectedCategory);
+
+      final String finalTitle =
+          descriptionController.text.trim().isEmpty
+              ? category.name
+              : descriptionController.text.trim();
+
+      await ExpenseService.addExpense(
+        partnerId: activePartnerId,
+        title: finalTitle,
+        amount: double.parse(amountController.text.trim()),
+        type: selectedType == EntryType.expense ? 'expense' : 'income',
+        category: selectedCategory!,
+        paidBy: user.uid,
+        createdAt: DateTime(
+          selectedDate.year,
+          selectedDate.month,
+          selectedDate.day,
+          DateTime.now().hour,
+          DateTime.now().minute,
+          DateTime.now().second,
+        ),
+      );
+
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      _showHomeSuccess(context);
+    } finally {
+      if (mounted) setState(() => isSaving = false);
+    }
+  }
 
   Widget _datePickerChip() {
     return GestureDetector(
@@ -861,10 +913,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
         decoration: BoxDecoration(
           color: const Color(0xFF1F2937),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.2),
-            width: 1.2,
-          ),
+          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.2),
         ),
         child: Row(
           children: [
@@ -880,11 +929,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
                 ),
               ),
             ),
-            const Icon(
-              Icons.calendar_today_outlined,
-              color: Colors.white70,
-              size: 20,
-            ),
+            const Icon(Icons.calendar_today_outlined, color: Colors.white70, size: 20),
           ],
         ),
       ),
@@ -897,26 +942,15 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
       initialDate: selectedDate,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: ThemeData.dark().copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF6366F1),
-            ),
-          ),
-          child: child!,
-        );
-      },
+      builder: (context, child) => Theme(
+        data: ThemeData.dark().copyWith(
+          colorScheme: const ColorScheme.dark(primary: Color(0xFF6366F1)),
+        ),
+        child: child!,
+      ),
     );
-
-    if (picked != null) {
-      setState(() {
-        selectedDate = picked;
-      });
-    }
+    if (picked != null) setState(() => selectedDate = picked);
   }
-
-  // ───────── TYPE TOGGLE ─────────
 
   Widget _typeToggle() {
     return Container(
@@ -936,15 +970,12 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
 
   Widget _typeButton(String label, EntryType type, Color color) {
     final active = selectedType == type;
-
     return Expanded(
       child: GestureDetector(
-        onTap: () {
-          setState(() {
-            selectedType = type;
-            selectedCategory = null;
-          });
-        },
+        onTap: () => setState(() {
+          selectedType = type;
+          selectedCategory = null;
+        }),
         child: Container(
           height: 44,
           alignment: Alignment.center,
@@ -965,8 +996,6 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
     );
   }
 
-  // ───────── AMOUNT FIELD ─────────
-
   Widget _amountField() {
     return Container(
       height: 68,
@@ -979,22 +1008,14 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
         children: [
           const Text(
             '₹',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.white54,
-            ),
+            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white54),
           ),
           const SizedBox(width: 6),
           Expanded(
             child: TextField(
               controller: amountController,
               keyboardType: TextInputType.number,
-              style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
               decoration: const InputDecoration(
                 hintText: '0',
                 hintStyle: TextStyle(color: Colors.white38),
@@ -1007,7 +1028,6 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
     );
   }
 
-  // ───────── CATEGORY DROPDOWN ─────────
   Widget _categoryDropdown(List<DemoCategory> categories) {
     return Container(
       height: 56,
@@ -1015,44 +1035,43 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
       decoration: BoxDecoration(
         color: const Color(0xFF1F2937),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.2),
-          width: 1.2,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.2),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: selectedCategory,
           hint: const Text(
             'Select a category',
-            style: TextStyle(
-              color: Colors.white54,
-              fontSize: 16,
-            ),
+            style: TextStyle(color: Colors.white54, fontSize: 16),
           ),
           isExpanded: true,
-          icon: const Icon(
-            Icons.keyboard_arrow_down,
-            color: Colors.white70,
-            size: 24,
-          ),
+          icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white70, size: 24),
           dropdownColor: const Color(0xFF1F2937),
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-          ),
+          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
           items: categories.map((category) {
+            final isCustom = _customCategories.any((c) => c.id == category.id);
             return DropdownMenuItem<String>(
               value: category.id,
-              child: Text(category.name),
+              child: Row(
+                children: [
+                  Expanded(child: Text(category.name)),
+                  if (isCustom)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white10,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'custom',
+                        style: TextStyle(color: Colors.white38, fontSize: 10),
+                      ),
+                    ),
+                ],
+              ),
             );
           }).toList(),
-          onChanged: (String? newValue) {
-            setState(() {
-              selectedCategory = newValue;
-            });
-          },
+          onChanged: (String? newValue) => setState(() => selectedCategory = newValue),
         ),
       ),
     );
@@ -1092,9 +1111,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
           backgroundColor: _submitColor,
           foregroundColor: Colors.white,
           disabledBackgroundColor: Colors.white.withOpacity(0.15),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
           elevation: 0,
         ),
         child: Text(
@@ -1103,10 +1120,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
               : selectedType == EntryType.income
                   ? 'Add Income'
                   : 'Add Expense',
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
         ),
       ),
     );
@@ -1128,11 +1142,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
         children: [
           const Text(
             'Add Entry',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
           ),
           GestureDetector(
             onTap: () => Navigator.pop(context),
@@ -1143,11 +1153,7 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
                 color: Colors.white12,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(
-                Icons.close,
-                color: Colors.white70,
-                size: 18,
-              ),
+              child: const Icon(Icons.close, color: Colors.white70, size: 18),
             ),
           ),
         ],
@@ -1155,9 +1161,381 @@ class _AddEntrySheetState extends State<AddEntrySheet> {
 
   Widget _sectionLabel(String text) => Padding(
         padding: const EdgeInsets.only(bottom: 6),
-        child: Text(
-          text,
-          style: const TextStyle(color: Colors.white70, fontSize: 13),
+        child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+      );
+}
+
+// ═══════════════════════════════════════════════════════
+// ADD CATEGORY BOTTOM SHEET
+// ═══════════════════════════════════════════════════════
+class _AddCategorySheet extends StatefulWidget {
+  final EntryType type;
+  final List<String> existingNames;
+  final Function(String name) onAdded;
+
+  const _AddCategorySheet({
+    required this.type,
+    required this.existingNames,
+    required this.onAdded,
+  });
+
+  @override
+  State<_AddCategorySheet> createState() => _AddCategorySheetState();
+}
+
+class _AddCategorySheetState extends State<_AddCategorySheet> {
+  final TextEditingController _nameController = TextEditingController();
+  bool _hasError = false;
+  bool _isSaving = false;
+
+  Color get _accentColor =>
+      widget.type == EntryType.expense
+          ? const Color(0xFFEF4444)
+          : const Color(0xFF3B82F6);
+
+  void _submit() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _hasError = true);
+      return;
+    }
+
+    if (widget.existingNames.contains(name.toLowerCase())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('A category with this name already exists'),
+          backgroundColor: Color(0xFF374151),
         ),
       );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    await widget.onAdded(name);
+    if (mounted) Navigator.pop(context);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF111827),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'New ${widget.type == EntryType.expense ? "Expense" : "Income"} Category',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: Colors.white12,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(Icons.close, color: Colors.white70, size: 18),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Saved permanently — appears every time you open the app',
+              style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 13),
+            ),
+            const SizedBox(height: 28),
+            const Text('Category Name',
+                style: TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(height: 10),
+            Container(
+              height: 56,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1F2937),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: _hasError
+                      ? const Color(0xFFEF4444)
+                      : Colors.white.withOpacity(0.2),
+                  width: 1.2,
+                ),
+              ),
+              child: TextField(
+                controller: _nameController,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+                decoration: InputDecoration(
+                  hintText: 'e.g. Gym, Furniture...',
+                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+                  border: InputBorder.none,
+                ),
+                onChanged: (_) {
+                  if (_hasError) setState(() => _hasError = false);
+                },
+                onSubmitted: (_) => _submit(),
+              ),
+            ),
+            if (_hasError)
+              Padding(
+                padding: const EdgeInsets.only(top: 6, left: 4),
+                child: Text(
+                  'Please enter a category name',
+                  style: TextStyle(color: _accentColor, fontSize: 12),
+                ),
+              ),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _isSaving ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _accentColor,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: Colors.white.withOpacity(0.15),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  elevation: 0,
+                ),
+                child: Text(
+                  _isSaving ? 'Saving...' : 'Add Category',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// MANAGE CATEGORIES BOTTOM SHEET
+// ═══════════════════════════════════════════════════════
+class _ManageCategoriesSheet extends StatelessWidget {
+  final EntryType type;
+  final List<CustomCategory> customCategories;
+  final Function(String categoryId) onDeleted;
+
+  const _ManageCategoriesSheet({
+    required this.type,
+    required this.customCategories,
+    required this.onDeleted,
+  });
+
+  Color get _accentColor =>
+      type == EntryType.expense
+          ? const Color(0xFFEF4444)
+          : const Color(0xFF3B82F6);
+
+  void _confirmDelete(BuildContext context, CustomCategory cat) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1F2937),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Delete Category?',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          '"${cat.name}" will be permanently deleted.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              onDeleted(cat.id);
+              if (customCategories.length <= 1) Navigator.pop(context);
+            },
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF111827),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Custom ${type == EntryType.expense ? "Expense" : "Income"} Categories',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.white12,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.close, color: Colors.white70, size: 18),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Tap the trash icon to permanently delete',
+            style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 13),
+          ),
+          const SizedBox(height: 20),
+          if (customCategories.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Text(
+                  'No custom categories yet',
+                  style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 14),
+                ),
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: customCategories.length,
+              separatorBuilder: (_, __) =>
+                  Divider(color: Colors.white.withOpacity(0.06), height: 1),
+              itemBuilder: (context, index) {
+                final cat = customCategories[index];
+                return Dismissible(
+                  key: Key(cat.id),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(Icons.delete_outline, color: Color(0xFFEF4444)),
+                  ),
+                  confirmDismiss: (_) async {
+                    _confirmDelete(context, cat);
+                    return false;
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: _accentColor.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(Icons.label_outline, color: _accentColor, size: 18),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Text(
+                            cat.name,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () => _confirmDelete(context, cat),
+                          child: Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.06),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.delete_outline,
+                              color: Color(0xFFEF4444),
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
 }

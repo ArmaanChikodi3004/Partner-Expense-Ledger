@@ -47,18 +47,28 @@ class CategoryChartCard extends StatelessWidget {
   }
 
   Map<String, double> _calculateCategoryTotals() {
-    final Map<String, double> totals = {};
+  final Map<String, double> totals = {};
 
-    for (final doc in expenses) {
-      final data = doc.data();
-      if (data['type'] != 'expense') continue;
+  for (final doc in expenses) {
+    final data = doc.data();
+    if (data['type'] != 'expense') continue;
 
-      final category = data['category'];
-      final amount = (data['amount'] as num).toDouble();
+    final category = data['category'] as String;
+    final amount = (data['amount'] as num).toDouble();
 
-      totals[category] = (totals[category] ?? 0) + amount;
-    }
+    // For custom categories (Firestore doc IDs), use the title as the key
+    // For built-in categories (food, travel etc.), use the id
+    final String key = (data['title'] != null &&
+                        data['title'].toString().trim().isNotEmpty &&
+                        !['food','travel','shopping','fuel','maintenance',
+                           'lodging','office','other_expense',
+                           'salary','freelance','other_income'].contains(category))
+        ? data['title'] as String
+        : category;
 
-    return totals;
+    totals[key] = (totals[key] ?? 0) + amount;
   }
+
+  return totals;
+}
 }

@@ -76,25 +76,39 @@ class CategoryDonutChart extends StatelessWidget {
 
   // ---------------- HELPERS ----------------
   Color _colorForCategory(String category) {
-    switch (category) {
-      case 'rent':
-        return const Color(0xFF8B5CF6);
-      case 'food':
-        return const Color(0xFFEF4444);
-      case 'travel':
-        return const Color(0xFF3B82F6);
-      case 'fuel':
-        return const Color(0xFFF59E0B); // Amber/Orange
-      case 'maintenance':
-        return const Color(0xFF10B981); // Emerald Green
-      case 'lodging':
-        return const Color(0xFFEC4899); // Pink
-      case 'office':
-        return const Color(0xFF06B6D4); // Cyan
-      default:
-        return Colors.grey;
-    }
+  switch (category) {
+    case 'rent':
+      return const Color(0xFF8B5CF6);
+    case 'food':
+      return const Color(0xFFEF4444);
+    case 'travel':
+      return const Color(0xFF3B82F6);
+    case 'fuel':
+      return const Color(0xFFF59E0B);
+    case 'maintenance':
+      return const Color(0xFF10B981);
+    case 'lodging':
+      return const Color(0xFFEC4899);
+    case 'office':
+      return const Color(0xFF06B6D4);
+    case 'shopping':
+      return const Color(0xFFEC4899);
+    case 'other_expense':
+      return const Color(0xFF9CA3AF);
+    default:
+      // deterministic color from the category id hash
+      final colors = [
+        const Color(0xFFA78BFA),
+        const Color(0xFFFBBF24),
+        const Color(0xFF34D399),
+        const Color(0xFFF472B6),
+        const Color(0xFF60A5FA),
+        const Color(0xFFFB923C),
+        const Color(0xFF2DD4BF),
+      ];
+      return colors[category.hashCode.abs() % colors.length];
   }
+}
 
   String _emojiForCategory(String category) {
     switch (category) {
@@ -112,26 +126,23 @@ class CategoryDonutChart extends StatelessWidget {
 
 String _displayName(String category) {
   switch (category) {
-    case 'rent':
-      return 'Rent';
-    case 'food':
-      return 'Food';
-    case 'travel':
-      return 'Travel';
-    case 'shopping':
-      return 'Shopping';
-    case 'other_expense':
-      return 'Others';
-    case 'fuel':
-      return 'Fuel';
-    case 'maintenance':
-      return 'Maintenance';
-     case 'lodging':
-      return 'Lodging';
-     case 'office':
-      return 'Office';
+    case 'rent':          return 'Rent';
+    case 'food':          return 'Food';
+    case 'travel':        return 'Travel';
+    case 'shopping':      return 'Shopping';
+    case 'other_expense': return 'Others';
+    case 'fuel':          return 'Fuel';
+    case 'maintenance':   return 'Maintenance';
+    case 'lodging':       return 'Lodging';
+    case 'office':        return 'Office';
     default:
-      return category;
+      // If it's a custom id like 'custom_177...', just return as-is
+      // If you pass the name as key this will already be 'Furniture' etc.
+      return category
+          .replaceFirst(RegExp(r'^custom_\d+$'), 'Custom')
+          .split('_')
+          .map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1))
+          .join(' ');
   }
 }
 
