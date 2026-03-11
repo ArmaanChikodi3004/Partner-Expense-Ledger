@@ -1176,6 +1176,7 @@
 //   }
 // }
 
+
 //claude 
 
 import 'package:flutter/material.dart';
@@ -1217,7 +1218,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   String formatCurrency(double v) => '₹${v.toStringAsFixed(0)}';
 
-  // ── DATE RANGES ──
   DateTimeRange _rangeForChip(DateChip chip) {
     final now = DateTime.now();
     switch (chip) {
@@ -1290,9 +1290,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   // ── CATEGORY BOTTOM SHEET ──
   void _openCategoryPicker(Map<String, String> customCategoryNames) {
-   final builtInExpense = demoCategories
-    .where((c) => c.type.toString().contains('expense'))
-    .toList();
+    // Show all demo categories without type filtering to avoid import issues
+    final builtInExpense = demoCategories.toList();
 
     showModalBottomSheet(
       context: context,
@@ -1310,7 +1309,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
           builder: (_, scrollController) {
             return Column(
               children: [
-                // Handle bar
                 Center(
                   child: Container(
                     margin: const EdgeInsets.only(top: 12, bottom: 16),
@@ -1401,8 +1399,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
                             ),
                           ),
                         ),
-
-                        // ── CUSTOM CATEGORIES ──
                         ...customCategoryNames.entries.map((entry) =>
                             _categoryTile(
                               icon: '🏷️',
@@ -1454,12 +1450,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
               child: Text(
                 label,
                 style: TextStyle(
-                  color:
-                      isSelected ? const Color(0xFF6366F1) : Colors.white,
+                  color: isSelected
+                      ? const Color(0xFF6366F1)
+                      : Colors.white,
                   fontSize: 15,
-                  fontWeight: isSelected
-                      ? FontWeight.w600
-                      : FontWeight.normal,
+                  fontWeight:
+                      isSelected ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),
             ),
@@ -1485,7 +1481,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
               .where((d) => d.data()['category'] == selectedCategoryId)
               .toList()
           : docs;
-
       await PdfService.downloadReport(
         expenses: filteredDocs,
         range: summaryRange,
@@ -1517,7 +1512,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
               .where((d) => d.data()['category'] == selectedCategoryId)
               .toList()
           : docs;
-
       await PdfService.previewReport(
         expenses: filteredDocs,
         range: summaryRange,
@@ -1625,8 +1619,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                             label: 'Preview',
                             onTap: _isGeneratingPdf
                                 ? null
-                                : () => _previewPdf(
-                                    docs, summaryRange, customCategoryNames),
+                                : () => _previewPdf(docs, summaryRange,
+                                    customCategoryNames),
                           ),
                           const SizedBox(width: 8),
                           _pdfButton(
@@ -1634,8 +1628,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                             label: 'Download',
                             onTap: _isGeneratingPdf
                                 ? null
-                                : () => _downloadPdf(
-                                    docs, summaryRange, customCategoryNames),
+                                : () => _downloadPdf(docs, summaryRange,
+                                    customCategoryNames),
                             isPrimary: true,
                           ),
                         ],
@@ -1643,7 +1637,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     ],
                   ),
 
-                  // ── PDF LOADING INDICATOR ──
+                  // ── PDF LOADING ──
                   if (_isGeneratingPdf) ...[
                     const SizedBox(height: 12),
                     Container(
@@ -1653,8 +1647,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         color: const Color(0xFF6366F1).withOpacity(0.15),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                            color:
-                                const Color(0xFF6366F1).withOpacity(0.3)),
+                            color: const Color(0xFF6366F1).withOpacity(0.3)),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1678,68 +1671,80 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
                   const SizedBox(height: 16),
 
-                  // ── DATE CHIPS ──
-                  _dateChips(context),
-                  const SizedBox(height: 12),
+                  // ── ALL CHIPS IN ONE WRAP ──
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      // Date chips
+                      ...DateChip.values.map((c) => _darkChip(
+                            label: _dateLabel(c),
+                            active: activeDateChip == c,
+                            onTap: () async {
+                              if (c == DateChip.custom) {
+                                final picked = await showDateRangePicker(
+                                  context: context,
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime.now(),
+                                  builder: (_, child) => Theme(
+                                      data: ThemeData.dark(), child: child!),
+                                );
+                                if (picked == null) return;
+                                setState(() {
+                                  activeDateChip = c;
+                                  selectedRange = picked;
+                                });
+                              } else {
+                                setState(() {
+                                  activeDateChip = c;
+                                  selectedRange = null;
+                                });
+                              }
+                            },
+                          )),
 
-                  // ── CATEGORY FILTER BUTTON ──
-                  GestureDetector(
-                    onTap: () => _openCategoryPicker(customCategoryNames),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 11),
-                      decoration: BoxDecoration(
-                        color: selectedCategoryId != null
-                            ? const Color(0xFF6366F1).withOpacity(0.15)
-                            : const Color(0xFF1F2937),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: selectedCategoryId != null
-                              ? const Color(0xFF6366F1).withOpacity(0.5)
-                              : Colors.white.withOpacity(0.08),
+                      // Category filter chip
+                      GestureDetector(
+                        onTap: () =>
+                            _openCategoryPicker(customCategoryNames),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: selectedCategoryId != null
+                                ? const Color(0xFF6366F1)
+                                : const Color(0xFF1F2937),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                selectedCategoryLabel ?? 'All Categories',
+                                style: TextStyle(
+                                  color: selectedCategoryId != null
+                                      ? Colors.white
+                                      : Colors.white70,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              const Icon(Icons.keyboard_arrow_down,
+                                  size: 18, color: Colors.white70),
+                            ],
+                          ),
                         ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.filter_list_rounded,
-                            size: 16,
-                            color: selectedCategoryId != null
-                                ? const Color(0xFF6366F1)
-                                : Colors.white54,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            selectedCategoryLabel ?? 'All Categories',
-                            style: TextStyle(
-                              color: selectedCategoryId != null
-                                  ? const Color(0xFF6366F1)
-                                  : Colors.white70,
-                              fontSize: 13,
-                              fontWeight: selectedCategoryId != null
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            size: 18,
-                            color: selectedCategoryId != null
-                                ? const Color(0xFF6366F1)
-                                : Colors.white38,
-                          ),
-                        ],
-                      ),
-                    ),
+                    ],
                   ),
 
                   const SizedBox(height: 16),
 
                   // ── SUMMARY CARDS ──
-                  _summaryCard(
-                      income, expense, income - expense, summaryEntries.length),
+                  _summaryCard(income, expense, income - expense,
+                      summaryEntries.length),
                   const SizedBox(height: 24),
 
                   // ── TOP SPENDING ──
@@ -1773,7 +1778,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
         opacity: onTap == null ? 0.4 : 1.0,
         duration: const Duration(milliseconds: 200),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: isPrimary
                 ? const Color(0xFF6366F1)
@@ -1875,7 +1881,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color:
               active ? const Color(0xFF6366F1) : const Color(0xFF1F2937),
@@ -1897,41 +1904,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  // ── DATE CHIPS ──
-  Widget _dateChips(BuildContext context) {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: DateChip.values.map((c) {
-        return _darkChip(
-          label: _dateLabel(c),
-          active: activeDateChip == c,
-          onTap: () async {
-            if (c == DateChip.custom) {
-              final picked = await showDateRangePicker(
-                context: context,
-                firstDate: DateTime(2020),
-                lastDate: DateTime.now(),
-                builder: (_, child) =>
-                    Theme(data: ThemeData.dark(), child: child!),
-              );
-              if (picked == null) return;
-              setState(() {
-                activeDateChip = c;
-                selectedRange = picked;
-              });
-            } else {
-              setState(() {
-                activeDateChip = c;
-                selectedRange = null;
-              });
-            }
-          },
-        );
-      }).toList(),
     );
   }
 
