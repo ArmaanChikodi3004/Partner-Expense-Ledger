@@ -985,6 +985,8 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:typed_data';
 
+import '../constants/active_partner.dart';
+
 class PdfService {
   static String _formatCurrency(double amount) =>
       'Rs. ${amount.toStringAsFixed(0)}';
@@ -1014,12 +1016,30 @@ class PdfService {
     String category,
     Map<String, String> customCategoryNames,
   ) {
-    // Check custom categories map first (Firestore doc ID → name)
     if (customCategoryNames.containsKey(category)) {
       return customCategoryNames[category]!;
     }
-    // Fall back to built-in category names
     return _categoryDisplayName(category);
+  }
+
+  // ─────────────────────────────────────────────
+  // FETCH CUSTOM CATEGORY NAMES FRESH FROM FIRESTORE
+  // ─────────────────────────────────────────────
+  static Future<Map<String, String>> _fetchCustomCategoryNames() async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('partners')
+        .doc(activePartnerId)
+        .collection('customCategories')
+        .get();
+
+    final map = <String, String>{};
+    for (final doc in snapshot.docs) {
+      final name = doc.data()['name'] as String?;
+      if (name != null) {
+        map[doc.id] = name;
+      }
+    }
+    return map;
   }
 
   // ─────────────────────────────────────────────
@@ -1029,9 +1049,16 @@ class PdfService {
     required List<QueryDocumentSnapshot<Map<String, dynamic>>> expenses,
     required DateTimeRange range,
     required String partnerName,
-    required Map<String, String> customCategoryNames,
+    // Still accepted for backward compat but we always re-fetch fresh
+    Map<String, String> customCategoryNames = const {},
   }) async {
     final pdf = pw.Document();
+
+    // Always fetch fresh from Firestore so names are never stale/empty
+    final resolvedNames = await _fetchCustomCategoryNames();
+
+    // Merge passed-in map with fetched (fetched takes priority)
+    final allNames = {...customCategoryNames, ...resolvedNames};
 
     // Filter to range
     final filtered = expenses.where((doc) {
@@ -1057,7 +1084,7 @@ class PdfService {
         totalIncome += amount;
       } else {
         totalExpense += amount;
-        final key = _resolveCategoryName(category, customCategoryNames);
+        final key = _resolveCategoryName(category, allNames);
         categoryTotals[key] = (categoryTotals[key] ?? 0) + amount;
       }
     }
@@ -1099,7 +1126,9 @@ class PdfService {
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
                         pw.Text(
-                          partnerName.isNotEmpty ? partnerName : 'Partner Ledger',
+                          partnerName.isNotEmpty
+                              ? partnerName
+                              : 'Partner Ledger',
                           style: pw.TextStyle(
                             color: textColor,
                             fontSize: 22,
@@ -1109,7 +1138,8 @@ class PdfService {
                         pw.SizedBox(height: 4),
                         pw.Text(
                           'Expense Report',
-                          style: pw.TextStyle(color: subtextColor, fontSize: 13),
+                          style:
+                              pw.TextStyle(color: subtextColor, fontSize: 13),
                         ),
                       ],
                     ),
@@ -1156,8 +1186,8 @@ class PdfService {
                 subtextColor,
               ),
               pw.SizedBox(width: 12),
-              _summaryCard('Transactions', '${filtered.length}',
-                  primaryColor, cardColor, textColor, subtextColor),
+              _summaryCard('Transactions', '${filtered.length}', primaryColor,
+                  cardColor, textColor, subtextColor),
             ],
           ),
 
@@ -1211,7 +1241,8 @@ class PdfService {
                         return pw.TableRow(
                           children: [
                             _tableCell(e.key, textColor),
-                            _tableCell(_formatCurrency(e.value), expenseColor),
+                            _tableCell(
+                                _formatCurrency(e.value), expenseColor),
                             _tableCell('$pct%', subtextColor),
                           ],
                         );
@@ -1238,7 +1269,8 @@ class PdfService {
                 decoration: pw.BoxDecoration(color: cardColor),
                 children: [
                   pw.Padding(
-                    padding: const pw.EdgeInsets.fromLTRB(12, 14, 12, 10),
+                    padding:
+                        const pw.EdgeInsets.fromLTRB(12, 14, 12, 10),
                     child: pw.Text(
                       'All Transactions',
                       style: pw.TextStyle(
@@ -1253,12 +1285,13 @@ class PdfService {
                   pw.SizedBox(),
                 ],
               ),
-              // Column headers row
+              // Column headers
               pw.TableRow(
                 decoration: pw.BoxDecoration(
                   color: cardColor,
                   border: pw.Border(
-                    bottom: pw.BorderSide(color: subtextColor, width: 0.5),
+                    bottom:
+                        pw.BorderSide(color: subtextColor, width: 0.5),
                   ),
                 ),
                 children: [
@@ -1275,23 +1308,20 @@ class PdfService {
                 final date = ts?.toDate() ?? DateTime.now();
                 final isIncome = data['type'] == 'income';
                 final rawTitle = data['title'] as String? ?? '';
-                final category = data['category'] as String;
+                final category = data['category'] as String? ?? '';
 
-                // Title: use rawTitle if set, else resolved category name
-                final title = rawTitle.isNotEmpty
-                    ? rawTitle
-                    : _resolveCategoryName(category, customCategoryNames);
-
-                // Category column: always resolve properly
                 final displayCategory =
-                    _resolveCategoryName(category, customCategoryNames);
+                    _resolveCategoryName(category, allNames);
+
+                final title = rawTitle.isNotEmpty ? rawTitle : displayCategory;
 
                 final amount = (data['amount'] as num).toDouble();
 
                 return pw.TableRow(
                   decoration: pw.BoxDecoration(color: cardColor),
                   children: [
-                    _tableCell(DateFormat('dd MMM').format(date), subtextColor),
+                    _tableCell(
+                        DateFormat('dd MMM').format(date), subtextColor),
                     _tableCell(title, textColor),
                     _tableCell(displayCategory, subtextColor),
                     _tableCell(
@@ -1317,7 +1347,7 @@ class PdfService {
     required List<QueryDocumentSnapshot<Map<String, dynamic>>> expenses,
     required DateTimeRange range,
     required String partnerName,
-    required Map<String, String> customCategoryNames,
+    Map<String, String> customCategoryNames = const {},
     required BuildContext context,
   }) async {
     final bytes = await generateReport(
@@ -1344,7 +1374,7 @@ class PdfService {
     required List<QueryDocumentSnapshot<Map<String, dynamic>>> expenses,
     required DateTimeRange range,
     required String partnerName,
-    required Map<String, String> customCategoryNames,
+    Map<String, String> customCategoryNames = const {},
     required BuildContext context,
   }) async {
     final bytes = await generateReport(
@@ -1418,7 +1448,7 @@ class PdfService {
 }
 
 // ─────────────────────────────────────────────
-// PDF PREVIEW SCREEN (outside PdfService class)
+// PDF PREVIEW SCREEN
 // ─────────────────────────────────────────────
 class _PdfPreviewScreen extends StatelessWidget {
   final Uint8List bytes;
